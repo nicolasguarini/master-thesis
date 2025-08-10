@@ -15,8 +15,8 @@
 *.snm
 *.vrb
 *.xdv
-*.pdf
 # VS Code settings
 .vscode/
 # Mac system files
 .DS_Store
+_minted*

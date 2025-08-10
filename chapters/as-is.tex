@@ -15,7 +15,7 @@ These segments interact and communicate exclusively through a \textit{DMI Consol
 
 The overall architecture is depicted in the diagram in figure \ref{fig:as-is-system-design}.
 
-\begin{figure}[h]
+\begin{figure}[htbp]
   \centering
   \includegraphics[width=1.0\textwidth]{images/as-is/SRP AS-IS (System Architecture).jpg}
   \caption{AS-IS System Architecture}
@@ -84,7 +84,7 @@ In Figure \ref{fig:sr-state-flowchart-simple} a simple and high-level flowchart 
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\textwidth, height=\textheight, keepaspectratio]{images/as-is/Flowchart AS-IS.jpg}
+    \includegraphics[height=\textheight, keepaspectratio]{images/as-is/Flowchart AS-IS.jpg}
     \caption{AS-IS Complete Service Request Execution Workflow}
     \label{fig:flowchart-as-is}
 \end{figure}
@@ -128,62 +128,96 @@ The execution of Service Requests themselves can involve the SRP Agent on the cl
 
 
 \section{Problems and core issues of the current system}
-
-%\begin{itemize}
-%    \item Identification of existing challenges (dynamic forms, field management, etc.)
-%    \item Impact of issues on managing SR
-%    \item Examination of currently implemented solutions (e.g., use of Stored Procedures)
-%\end{itemize}
-
-L'analisi dell'architettura e del flusso di lavoro del sistema SRP nella sua forma attuale ha rivelato una serie di problematiche critiche che ne compromettono la scalabilità, la manutenibilità e l'affidabilità. Questi problemi sono profondamente radicati nelle scelte tecnologiche e di design fatte anni fa e si manifestano in diverse aree chiave del sistema, dalla gestione del catalogo all'esecuzione degli script e all'import delle anagrafiche da Active Directory.
+L'analisi dell'architettura e del flusso di lavoro del sistema SRP nella sua forma attuale ha rivelato una serie di problematiche che ne compromettono la scalabilità, la manutenibilità e l'affidabilità. Questi problemi sono profondamente radicati nelle scelte tecnologiche e di design fatte anni fa e si manifestano in diverse aree chiave del sistema, dalla gestione del catalogo all'esecuzione degli script e all'import delle anagrafiche da Active Directory.
 
 \subsection{Architectural and Technological Challenges}
 
 Il sistema SRP presenta una struttura architetturale frammentata e una complessa integrazione tra i suoi componenti principali, portando a diverse criticità.
 
 \subsubsection{Monolithic Frontend Component}
-L'interfaccia utente per la navigazione del catalogo delle Service Request e per la compilazione delle relative forms è un componente front-end Vue.js eccessivamente grande e complesso (quasi 11 mila righe). Questo rende le modifiche, le estensioni,  e le customizzazioni per clienti specifici estremamente difficili. La logica per la gestione di campi dinamici, le relazioni tra di essi, le regole di compilazione e la validazione dei campi sono tutte gestite a livello di frontend, mescolando logica di business e presentazione. 
+L'interfaccia utente per la navigazione del catalogo delle Service Request e per la compilazione delle relative forms è un componente front-end Vue.js eccessivamente grande e complesso (quasi 11 mila righe). Questo rende le modifiche, le estensioni,  e le customizzazioni per clienti specifici estremamente difficili. 
+La logica per la gestione di campi dinamici, le relazioni tra di essi, le regole di compilazione e la validazione dei campi sono tutte gestite a livello di frontend con una lunga serie di if con valori hard-coded, come il seguente:
 
-Nello specifico, l'unica e sola informazione relativa ai campi che viene restituita dal servizio REST backend (SRPWebSeviceREST), oltre al nome del campo e alla sua mandatorietà, è il suo tipo. Diventa quindi facile immaginare come questa informazione, che dovrebbe essere solamente un'indicazione sul componente che dovrà essere renderizzato (e.g. textbox, select, radio button, etc..) diventa una sorta di identificatore di un qualcosa di più ampio, come ad esempio un campo con tipo e.g. \texttt{UPN} è un campo composto dal valore di un altro campo 'Display Name', concatenato a una \@, con suffisso il valore di una select le cui opzioni sono i domini del cliente, forniti da un servizio REST esterno.
+\begin{minted}[linenos,tabsize=2,breaklines]{vue}
+<div v-if="field.desc == 'Domain'">
+    ...
+</div>
+\end{minted}
+
+Questo, oltre a mescolare logica di business e presentazione, crea un grosso problema a livello di configurazione del catalogo, in quanto non esiste un modo centralizzato per gestire i campi e le loro relazioni. Ogni modifica richiede quindi un intervento diretto sul codice, rendendo il sistema poco flessibile e difficile da mantenere, soprattutto in un contesto in cui l'operatore che va a mettere mano al catalogo non è un programmatore e non sa come è strutturato il codice del frontend. 
+Ad esempio, se un operatore volesse aggiungere un nuovo campo "Domain" a una Service Request, questo campo dovrà avere esattamente descrizione "Domain" e tipo "domain", altrimenti il componente Vue.js non lo renderizzerà correttamente. 
+
+Queste dinamiche rendono il sistema fragile e suscettibile a frequenti errori che fanno sprecare tempo e risorse sia ai clienti che agli operatori.
+
+\subsubsection{Servizio REST Backend eccessivamente generico}
+
+Infatti, l'unica e sola informazione relativa ai campi che viene restituita dal servizio REST backend (SRPWebSeviceREST), oltre al nome del campo e alla sua mandatorietà, è il suo \textit{type}. Diventa quindi facile immaginare come questa informazione, che dovrebbe essere solamente un'indicazione sul componente che dovrà essere renderizzato (e.g. textbox, select, radio button, etc..) può diventare un identificatore di un qualcosa di molto più ampio. 
+
+Ad esempio, un campo di tipo \texttt{UPN} è un campo composto dal valore di un altro campo 'Display Name', concatenato a una '@', con suffisso il valore di una select le cui opzioni sono i domini del cliente, forniti da un servizio REST esterno (e.g. "\texttt{n.guarini@elmec.it}", dove "\texttt{n.guarini}" è il valore del campo "Display Name", e "\texttt{elmec.it}" è il valore del campo select "Domain"). Nonostante questa complessità, il servizio REST restituisce solamente un documento JSON di questo tipo:
+
+\begin{minted}[linenos,tabsize=2,breaklines]{json}
+{
+    "idField": 1603,
+    "descField": "UPN",
+    "type": "upn",
+    "mandatory": true
+}
+\end{minted}
+
+delegando quindi al frontend la responsabilità di interpretare il tipo e renderizzare il campo in modo corretto.
+
+\subsubsection{Dipendenza dall'agente SRP}
+
+L'importazione dei dati dagli Active Directory dei clienti e l'esecuzione effettiva delle Service Requests sono gestite da un agente installato direttamente sui Domain Controller dei clienti. Questo approccio solleva diverse problematiche:
 
 \begin{itemize}
-\item \textbf{Tight Coupling with DeliveryHub}: La gestione del catalogo, la definizione dei template di configurazione e il collegamento tra Service Request e script PowerShell sono interamente dipendenti da DeliveryHub. Questa dipendenza crea un "single point of failure" nella configurazione e limita la flessibilità, rendendo impossibile per Elmec creare operatività aggiuntive senza passare da questo sistema.
-\item \textbf{Dependence on SRP Agent}: La gestione dell'Active Directory e delle risorse del cliente si basa su un SRP Agent installato direttamente sui Domain Controller. Questo approccio solleva diversi problemi:
-\begin{itemize}
-\item \textbf{Sicurezza e Permessi}: Spesso l'agente richiede credenziali con privilegi elevati (es. domain-admin), che i clienti sono sempre più restii a concedere.
-\item \textbf{Affidabilità e Controllo}: Le configurazioni sull'agente e sul Domain Controller sono complesse e difficili da gestire centralmente, potendo causare errori di esecuzione e di sincronizzazione dei dati.
-\item \textbf{Scalabilità}: La necessità di installare, configurare e manutenere un agente per ogni dominio cliente rappresenta un notevole onere operativo. Si stanno valutando alternative come sistemi di provisioning più moderni o l'integrazione con ORMIS per superare queste limitazioni.
-\end{itemize}
-\item \textbf{Obsolete Communication Patterns}: La comunicazione unidirezionale attraverso la \textit{DMI Console} crea un collo di bottiglia e complica la gestione delle operazioni asincrone. La comunicazione tra i componenti è spesso basata su polling (es. SRP Agent che interroga il server ogni 5 minuti), un approccio che introduce latenza e inefficienze.
+    \item \textbf{Sicurezza e Permessi}: Spesso l'agente richiede credenziali con privilegi elevati (es. domain-admin), che i clienti sono sempre più restii a concedere.
+    \item \textbf{Affidabilità e Controllo}: Le configurazioni sull'agente e sul Domain Controller sono complesse e difficili da gestire centralmente, potendo causare errori di esecuzione e di sincronizzazione dei dati.
+    \item \textbf{Scalabilità}: La necessità di installare, configurare e manutenere un agente per ogni dominio cliente rappresenta un notevole onere operativo. Si stanno valutando alternative come sistemi di provisioning più moderni.
+    \item \textbf{Obsolete Communication Patterns}: La comunicazione unidirezionale attraverso la \textit{DMI Console} crea un collo di bottiglia e complica la gestione delle operazioni asincrone. La comunicazione tra i componenti nella rete del cliente e la rete aziendale è basata su polling (es. SRP Agent che interroga il server ogni 5 minuti), un approccio che introduce latenza e inefficienze.
 \end{itemize}
 
 \subsection{Code and Data Management Issues}
 
 La gestione del codice e della persistenza dei dati è un altro aspetto critico del sistema, caratterizzato dalla mancanza di versionamento e di strumenti di debug moderni.
 
+\subsubsection{Unversioned and Undebuggable Stored Procedures}
+L'utilizzo intensivo di Stored Procedures nel database MSSQL rappresenta uno dei maggiori punti di debolezza. Queste procedure contengono logica di business fondamentale e sono:
 \begin{itemize}
-\item \textbf{Unversioned and Undebuggable Stored Procedures}: L'utilizzo intensivo di Stored Procedures nel database ELMEC-CMI-MSSQL rappresenta uno dei maggiori punti di debolezza. Queste procedure contengono logica di business fondamentale e sono:
-\begin{itemize}
-\item \textbf{Non Versionate}: Non esiste un sistema di controllo versione centralizzato per le Stored Procedures. Le modifiche vengono apportate direttamente sul database, rendendo impossibile tracciare i cambiamenti, tornare a versioni precedenti o testare le modifiche in ambienti separati.
-\item \textbf{Difficili da Debuggare}: Il debugging delle Stored Procedures è un processo complesso e macchinoso, richiedendo spesso l'accesso diretto e gli strumenti specifici del server SQL, con il rischio di influenzare l'ambiente di produzione.
+    \item \textbf{Non Versionate}: Non esiste un sistema di controllo versione centralizzato per le Stored Procedures. Le modifiche vengono apportate direttamente sul database, rendendo impossibile tracciare i cambiamenti, tornare a versioni precedenti o testare le modifiche in ambienti separati.
+    \item \textbf{Difficili da Debuggare}: Il debugging delle Stored Procedures è un processo complesso e macchinoso, richiedendo spesso l'accesso diretto e gli strumenti specifici del server SQL, con il rischio di influenzare l'ambiente di produzione.
 \end{itemize}
-\item \textbf{Inaccessible and Unversioned SSIS Jobs}: I pacchetti S.S.I.S. sono essenziali per l'importazione e l'esportazione dei dati (es. anagrafiche AD). Tuttavia, questi job risiedono fisicamente sul server ELMEC-CMI-MSSQL e l'unico modo per accedervi e modificarli è attraverso un desktop remoto. Questo approccio:
-\begin{itemize}
-\item Impedisce il versionamento e la collaborazione.
-\item Limita l'accessibilità, rendendo la manutenzione e il debugging un'attività onerosa e rischiosa.
-\item Crea un punto di fallimento centralizzato e un forte accoppiamento tra la logica di business di import/export e l'infrastruttura.
-\end{itemize}
-\item \textbf{Lack of Data Integrity and Consistency}: L'assenza di una tipizzazione dei campi chiara e la gestione delle relazioni a livello di frontend o attraverso logiche procedurali nel database possono portare a inconsistenze e errori. L'analisi del "template di configurazione" ha evidenziato l'uso di tipi di campi generici (Campo Libero, Campo Custom) e l'impostazione di regole di validazione nel frontend, senza una garanzia di coerenza a livello di backend.
-\end{itemize}
+
+\subsubsection{Inaccessible and Unversioned SSIS Jobs}
+I pacchetti S.S.I.S. sono essenziali per l'importazione e l'esportazione dei dati (es. anagrafiche AD). Tuttavia, questi job risiedono fisicamente sul server ELMEC-CMI-MSSQL e l'unico modo per accedervi e modificarli è attraverso un desktop remoto. Questo approccio impedisce il versionamento e la collaborazione, limita l'accessibilità rendendo la manutenzione e il debugging un'attività onerosa e rischiosa, e crea un \textit{single-point-of-failure} e un forte accoppiamento tra la logica di business di import / export e l'infrastruttura.
+
+\subsection{Database Schema and Data Integrity Issues}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth, keepaspectratio]{images/as-is/ER SRM-SRP AS-IS.drawio.png}
+    \caption{AS-IS Database ER Schema}
+    \label{fig:er-as-is}
+\end{figure}
+
+L'analisi dello schema del database, rappresentato in figura \ref{fig:er-as-is}, ha rivelato una serie di problematiche significative che influenzano la qualità e l'integrità dei dati gestiti dal sistema SRP.
+
+
+\subsubsection{Lack of Data Integrity and Consistency}
+Uno dei problemi più significativi riguarda la mancanza di vincoli di integrità referenziale espliciti. Nello schema in figura \ref{fig:er-as-is}, sebbene siano state dedotte le relazioni tra le tabelle, queste non sono definite a livello di database mediante l'uso di chiavi esterne. Questa assenza non permette al database di garantire l'integrità dei dati: ad esempio, una riga in una tabella figlia potrebbe fare riferimento a una riga inesistente nella tabella padre. Tale scenario, noto come "dangling reference\footnote{Il "dangling pointer" è un problema tipicamente trattato nel contesto della programmazione a basso livello, dove un puntatore si riferisce ad un'area di memoria non più valida, perché già liberata o perché il puntatore viene utilizzato all'esterno del contesto di esistenza della variabile cui si riferisce \cite{apogeo-fondamenti-programmazione}, ma la stessa dinamica si può applicare anche nel contesto dei database, dove i "puntatori" sono rappresentati dalle chiavi esterne.}", può generare anomalie e incoerenze nel sistema, rendendo i dati inaffidabili e il debugging estremamente complesso.
+
+\subsubsection{Data Redundancy}
+Un'altra problematica è l'elevata ridondanza dei dati e al grande numero di attributi duplicati in diverse tabelle. Questo design, che si discosta dai principi di normalizzazione, porta alla memorizzazione della stessa informazione in più luoghi, che non solo aumenta il volume dei dati, ma introduce anche un elevato rischio di inconsistenze.
+
+\subsubsection{Unclear and Inconsistent Naming Conventions}
+La nomenclatura degli attributi e delle tabelle risulta inconsistente e poco chiara. Lo schema presenta una mescolanza di convenzioni (es. \texttt{IDGroup} vs. \texttt{GroupID}, nomi in inglese misti a termini specifici) e typo (es. \texttt{TBParamenters}), rendendo difficile la comprensione immediata della funzione di ciascun campo. In molti casi, la nomenclatura non è sufficientemente esplicita per descrivere il ruolo di un attributo, richiedendo una conoscenza approfondita del sistema per interpretare correttamente le relazioni e la logica di business. Questa mancanza di un vocabolario univoco e standardizzato ostacola la collaborazione tra gli sviluppatori, complica la manutenzione del codice e aumenta la probabilità di errori.
 
 \subsection{Maintenance and Operational Challenges}
 
-La gestione quotidiana del sistema è resa complessa da diverse inefficienze e scelte obsolete:
+La gestione quotidiana del sistema è resa complessa da diverse inefficienze e scelte di progettazione obsolete.
 
-\begin{itemize}
-\item \textbf{Manual Creation of Catalog Items}: La creazione di nuovi campi nel catalogo richiede la creazione di una "finta" Service Request, un processo inefficiente e non standardizzato che evidenzia una lacuna nella gestione del catalogo stesso.
-\item \textbf{Proliferation of Customer-Specific SRs}: La decisione storica di creare una Service Request separata per ogni cliente, anche per modifiche minori, ha portato a un catalogo con un numero molto elevato di SR. Questo approccio, sebbene concepito per prevenire la propagazione di errori, rende il catalogo ingombrante e difficile da navigare e manutenere.
-\item \textbf{Ambiguity in SR Statuses}: L'interazione tra gli stati della Service Request e quelli del ticket HDA non è sempre chiara, con stati come PENDING o ASSIGNED che possono avere implicazioni simili o sovrapposte. La gestione dell'automazione è spesso nascosta dietro a logiche condizionali, rendendo difficile la comprensione del flusso di lavoro effettivo.
-\end{itemize}
+Il design del sistema attuale non permette riutilizzo efficace delle Service Request e delle configurazioni del catalogo. Di conseguenza, ogni modifica o aggiunta richiede la creazione di una nuova Service Request, anche per piccole variazioni, portando a un catalogo ingombrante e difficile da gestire, composto da numerosissime duplicazioni di SR e campi. Questo, per quanto funzionante, non è un approccio scalabile e porta a inefficienze significative nella gestione del catalogo stesso, ad esempio se una Service Request deve essere modificata per tutti i clienti che la utilizzano, l'operatore dovrà modificare non solo la SR in questione, ma anche tutte le SR duplicate per ogni cliente, con il rischio di dimenticare qualche modifica o di fare errori.
 
-In conclusione, il sistema SRP nella sua forma attuale è afflitto da problemi di design, sicurezza, manutenibilità e scalabilità. La nuova architettura dovrà affrontare queste sfide introducendo un sistema più robusto, versionato e basato su principi di software design moderni.
+Questo approccio, sebbene concepito per prevenire la propagazione di errori, rende il catalogo ingombrante e difficile da navigare e manutenere.
+
+La nuova architettura dovrà affrontare queste sfide introducendo un sistema più robusto, versionato e basato su principi e pattern di software design moderni.

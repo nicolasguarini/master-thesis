@@ -14,7 +14,7 @@
 \usepackage[parfill]{parskip} % Disabilita l'indentazione dopo essere andati a capo
 % \usepackage[hang,flushmargin]{footmisc} % Disabilita l'indentazione nelle footnotes
 \usepackage{titlesec}
-% \usepackage{minted} % Per i blocchi di codice (requires -shell-escape)
+\usepackage{minted} % Per i blocchi di codice (requires -shell-escape)
 \usepackage{float}
 \usepackage[font=scriptsize, skip=5pt, justification=centering]{caption} % Unifica le opzioni
 \usepackage[backend=biber, style=numeric, backref=true,defernumbers=true]{biblatex}
@@ -80,18 +80,32 @@
 \input{chapters/as-is.tex}
 
 
-\chapter{Requirements of the New System}
+\chapter{Architectural Redesign}
 \begin{itemize}
-    \item Collection and definition of requirements for the new SRP system
+    \item Collection and definition of requirements for the new SRP system (ServiceRequestManager)
     \item Types of fields required (free, registries, custom)
     \item Integration with Active Directory and management of credentials
+    \item Propose and implement a complete architectural redesign of the SRP system
 \end{itemize}
 
-\chapter{Technologies and Tools Used}
+\chapter{Implementation of a Modular and Scalable Solution}
 \begin{itemize}
     \item Overview of technologies to be used (backend, frontend, database)
     \item Description of tools for automation and containerization
     \item Reasons behind the choice of modern technologies
+    \item Design a modular and scalable solution that can accomodate various client-specific configurations
+\end{itemize}
+
+\chapter{Migrations}
+\begin{itemize}
+    \item Plan and execute a full migration of databases and other company services / platforms that use SRP
+\end{itemize}
+
+\chapter{Reccomendation system through RAG and Fine-tuned LLMs}
+\begin{itemize}
+    \item Integration of Retrieval-Augmented Generation (RAG) techniques
+    \item Fine-tuning of Large Language Models (LLMs)
+    \item Implementation of a recommendation system for service requests
 \end{itemize}
 
 \chapter{Conclusions}
