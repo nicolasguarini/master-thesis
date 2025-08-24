@@ -1,0 +1,72 @@
+\chapter{Architectural Redesign}
+\begin{itemize}
+    \item Collection and definition of requirements for the new SRP system (ServiceRequestManager)
+    \item Propose and implement a complete architectural redesign of the SRP system
+\end{itemize}
+
+Date le numerose criticità emerse dall'analisi del sistema attuale, è chiaro che è necessario un redesign approfondito, 
+che possa fare quello che il sistema fa attualmente in modo più efficiente e ottimizzato, 
+e che possa anche soddsifare una serie di necessità che non c'erano quando il sistema è stato sviluppato svariati anni fa, 
+e che il sistema attuale non può gestire perchè non è stato progettato per farlo.
+
+\section{Requisiti del nuovo sistema}
+Il sistema può essere suddiviso in tre componenti principali: Struttura e gestione del catalogo; Esecuzione delle Service Requests, Import delle anagrafiche.
+Procediamo quindi ad analizzare i requisiti di ognuna di queste aree.
+
+\subsection{Struttura e Gestione del Catalogo}
+Questo è il componente più corposo tra i tre, e ha a che fare con tutto ciò che riguarda la definizione, la manutenzione, e la configurazione delle action che possono essere eseguite da ogni customer. Questo comprende quindi anche la gestione dei campi delle form, le personalizzazioni customer-specific, gli script, i loro parametri, la macchina target delle SR, e così via.
+
+Prima di procedere ad analizzare i requisiti, è bene fare una precisazione sulla terminologia che verrà utilizzata: 
+per "\textit{Action}" si intende la definizione formale di un'azione che un cliente può eseguire sulla sua infrastruttura; 
+per "\textit{Service Request}", invece, si intende l'esecuzione effettiva di un'Action. 
+Se vogliamo fare un parallelismo con la OOP possiamo vedere l'Action come una classe, e la Service Request come un oggetto, istanza della suddetta classe.
+
+\subsubsection{Actions}
+Possiamo vedere l'entità Action come il centro del componente del catalogo, ed è composta dai seguenti elementi principali: 
+\begin{itemize}
+  \item Metadata generali, come il nome, una descrizione estesa in italiano e in inglese, dei tags, un tipo, un gruppo, una categoria, e altre informazioni legate ad aspetti amministrativi e di fatturazione;
+  \item I campi della relativa form che il cliente dovrà compilare per eseguirla, con quindi le relative logiche legate ai tipi, alla validazione dei dati, alle dipendenze tra vari campi (e.g. campi che una volta compilati "abilitano" altri campi), all'autofill (e.g. campi i cui valori sono autofillati con valori di altri campi), ai valori sensibili, e così via;
+  \item Script che verrà eseguito nell'infrastruttura del cliente che andrà ad eseguire effettiva l'operazione richiesta;
+  \item Parametri dello script, che potranno essere valori dei campi, ma anche parametri aggiuntivi necessari all'esecuzione (e.g. credenziali AWS, credenziali 365, etc...)
+  \item Macchina target sulla quale dovrà essere eseguito lo script;
+\end{itemize}
+
+Alcune di queste dinamiche sono già implementate nel sistema attuale (con tutte le criticità del caso, come già discusso nel capitolo precedente), altre invece no. La cosa cruciale, però, è che tutti questi aspetti di configurazione siano personalizzabili per clienti specifici. 
+
+Dato che gli utilizzatori di questo sistema sono clienti molto grossi (Fendi, Valentino, Lavazza, per fare qualche nome), è facile immaginare come ognuno di essi abbia esigenze molto specifiche, che rendono impossibile un riutilizzo diretto delle Action tra più clienti. Allo stesso tempo, però, si vuole evitare a tutti i costi di avere infinite Action duplicate che condividono quasi tutto, con qualche piccola differenza (come succede nel sistema attuale). 
+
+E' necessario quindi implementare un sistema che preveda la possibilità di definire una sorta di struttura gerarchica, dove si configura una action "padre", che può essere "ereditata" da svariate action figlie che specificheranno soltanto le modifiche, il tutto senza intaccare l'action di default.
+
+\subsubsection{Campi}
+Insieme alle action, i campi sono componenti centrali su cui si basa gran parte del sistema. 
+Come già accennato, i campi sono entità che possono essere estremamente diversi tra loro, come campi di testo, select, select a scelta multipla, radio buttons, etc\dots
+Nel sistema attuale ci sono XX tipi di campi diversi. Questo numero è così alto perchè, per come è costruito il sistema attuale, l'informazione "type" è l'unico modo in cui il backend comunica al frontend che tipo di campo dovrà renderizzare. Infatti ci sono molti tipi diversi che però condividono la stessa logica, semplicemente magari usano due servizi diversi per recuperare i dati. Le tipologie effettive di campi sono quindi molte di meno, ed è cruciale identificarle e generalizzarle il più possibile. 
+
+L'idea generale è che la logica dei fields dovrà essere spostata lato backend, che dovrà estituire tutte le informazioni necessarie al frontend per renderizzare la form: dai tipi di campi, alle regex di validazione, ai messaggi di errore, a eventuali servizi esterni da contattare per recuperare la lista di options, piuttosto che per validare i dati, e così via.
+
+Tutto questo dovrà ovviamente essere compatibile con i requisiti di personalizazzione specificati nella sezione precedente. 
+
+Uno scenario di esempio tipico potrebbe essere il seguente: un customer utilizza una action, ma per qualche motivo ha bisogno di due campi aggiuntivi, che serviranno poi allo script che richiederà a sua volta due parametri aggiuntivi. Per alcuni campi inoltre, il cliente in questione usa regole di validazione diverse e template di autofill specifici. Queste personalizzazioni dovranno poter essere fatte senza modificare l'action e i field di default.
+
+Per quanto riguarda tipi di campi "particolari", il sistema dovrà prevedere:
+\begin{itemize}
+  \item Campi select le cui options sono specifiche per il customer (e.g. Campo "Domain", che è una select con tutti i domini del cliente);
+  \item Campi select le cui options sono globali per tutto il sistema (e.g. Campo "Country", che prevede una lista di stati uguali per tutti i clienti);
+  \item Campi select le cui options sono specifiche per il customer e per ottenerle bisogna contattare un servizio esterno, con eventuale possibilità di ricerca (e.g. Campo "Server", che è una select con tutti i server del cliente, restituiti dal servizio del CMDB Atlantis);
+  \item Campi di testo autofillati, ovvero i cui valori sono ottenuti attraverso un sistema di templating (Jinja) che usa i valori di altri campi (e.g. Campo "Logon Name", valorizzato concatenando nome e cognome dell'utente separati da, ad esempio, un punto);
+  \item Campi di testo la cui validazione avviene attraverso regex (e.g. Campo "Date", che deve rispettare il formato standard);
+  \item Campi di testo la cui validazione avviene attraverso un servizio esterno (e.g. Campo "Logon Name", che per essere validato richiede di contattare il relativo servizio di Active Directory per validare che un utente con lo stesso logon name non esiste già);
+  \item Campi con valori sensibili, i cui valori andranno quindi salvati cifrati, usando qualche algoritmo di cifratura simmetrica (e.g. Campo "Password");
+  \item Campi "misti", composti da più "sotto-campi" con caratteristiche diverse (e.g. Campo "UPN", che è composto dal logon name, una chiocciola, e il valore di una select le cui options sono la lista di domini del cliente);
+\end{itemize}
+
+E' importante che il sistema sia progettato in modo scalabile, in modo che se in futuro dovesse aggiungersi un'altra tipologia di campo, lo si potrà aggiungere con il minimo effort possibile.
+
+\subsubsection{Consistenza del catalogo}
+\subsubsection{Additional script parameters}
+\subsubsection{Configurazine della macchina target}
+
+
+\subsection{Esecuzione delle Service Requests}
+
+\section{Archietttura del nuovo sistema}
