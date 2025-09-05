@@ -73,7 +73,7 @@ Nel nuovo sistema, sarà necessario standardizzare queste dinamiche, trovando il
 \subsubsection{Configurazine della macchina target}
 Nel vecchio sistema le Service Requests venivano eseguite esclusivamente sui Domain Controller dei clienti. Nello specifico, ogni DC eseguiva un agente, che tramite \textit{polling} controllava periodicamente se ci fossero delle Service Request in stato \texttt{PENDING} con il campo \texttt{domain} combaciante. 
 
-Sarà necessario riprogettare anche questa parte dell'architettura, in quanto poco efficiente e molto limitante per design. Quindi, oltre a riprogettare queste dinamiche sarà anche necessario prevedere la possibilità di eseguire le SR anche su altri tipi di macchine, come worker interni a Elmec, piuttosto che ad altri tipi di macchine nella rete del cliente diverse dal Domain Controller (e.g. Server Exchange).
+Sarà necessario riprogettare anche questa parte dell'architettura, in quanto poco efficiente e molto limitante per design. Quindi, oltre a riprogettare queste dinamiche sarà anche necessario prevedere la possibilità di scegliere durante la configurazione di una Action, di eseguire le relative SR anche su altri tipi di macchine, come worker interni a Elmec, piuttosto che ad altri tipi di macchine nella rete del cliente diverse dal Domain Controller (e.g. Server Exchange).
 
 
 \subsection{Esecuzione delle Service Requests}
