@@ -63,8 +63,17 @@ Per quanto riguarda tipi di campi "particolari", il sistema dovrà prevedere:
 E' importante che il sistema sia progettato in modo scalabile, in modo che se in futuro dovesse aggiungersi un'altra tipologia di campo, lo si potrà implementare con il minimo effort possibile.
 
 \subsubsection{Consistenza delle configurazioni}
+% TODO
+
 \subsubsection{Additional script parameters}
+Un'altra tematica che dovrà essere gestita è quella dei parametri degli script. Nel vecchio sistema c'era un controllo granulare su ogni singolo parametro, che era legato allo script di una action ed eventualmente a un campo della relativa Service Request. In pratica, a ogni script venivano passati come parametri tutti i campi della action con i relativi valori, più alcuni parametri aggiuntivi non legati ad alcun campo (e.g. Server Exchange, AD Sync Server, credenziali varie). Questa dinamica dei parametri aggiuntivi avveniva attraverso la definizione di parametri con chiave esterna sul campo impostata a NULL, che venivano poi intercettati dalla stored procedure relativa alla generazione della strina dei parametri che, con degli if con valori hard-coded (e.g. \texttt{if ParamName == "ServerExc" then ...}) venivano valorizzati di conseguenza, recuperando le informazioni con delle logiche custom e non standardizzate.
+
+Nel nuovo sistema, sarà necessario standardizzare queste dinamiche, trovando il modo di poter definire in fase di configurazione delle action i parametri aggiuntivi di cui avranno bisogno oltre a quelli dei campi, e generalizzare il più possibile la logica implementativa, in modo che se si dovessero aggiungere dei nuovi "gruppi" di parametri aggiuntivi (e.g. credenziali AWS, credenziali O365, etc...) potrà essere fatto nel modo più efficiente possibile.
+
 \subsubsection{Configurazine della macchina target}
+Nel vecchio sistema le Service Requests venivano eseguite esclusivamente sui Domain Controller dei clienti. Nello specifico, ogni DC eseguiva un agente, che tramite \textit{polling} controllava periodicamente se ci fossero delle Service Request in stato \texttt{PENDING} con il campo \texttt{domain} combaciante. 
+
+Sarà necessario riprogettare anche questa parte dell'architettura, in quanto poco efficiente e molto limitante per design. Quindi, oltre a riprogettare queste dinamiche sarà anche necessario prevedere la possibilità di eseguire le SR anche su altri tipi di macchine, come worker interni a Elmec, piuttosto che ad altri tipi di macchine nella rete del cliente diverse dal Domain Controller (e.g. Server Exchange).
 
 
 \subsection{Esecuzione delle Service Requests}
