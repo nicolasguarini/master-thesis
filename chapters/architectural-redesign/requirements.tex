@@ -1,0 +1,91 @@
+\section{Requisiti del nuovo sistema}
+Il sistema può essere suddiviso in tre componenti principali: Struttura e gestione del catalogo; Esecuzione delle Service Requests, Import delle anagrafiche.
+Procediamo quindi ad analizzare i requisiti di ognuna di queste aree.
+
+\subsection{Struttura e Gestione del Catalogo}
+Questo è il componente più corposo tra i tre, e ha a che fare con tutto ciò che riguarda la definizione, la manutenzione, e la configurazione delle action che possono essere eseguite da ogni customer. Questo comprende quindi anche la gestione dei campi delle form, le personalizzazioni customer-specific, gli script, i loro parametri, la macchina target delle SR, e così via.
+
+Prima di procedere ad analizzare i requisiti, è bene fare una precisazione sulla terminologia che verrà utilizzata: 
+per "\textit{Action}" si intende la definizione formale di un'azione che un cliente può eseguire sulla sua infrastruttura; 
+per "\textit{Service Request}", invece, si intende l'esecuzione effettiva di un'Action. 
+Se vogliamo fare un parallelismo con la OOP possiamo vedere l'Action come una classe, e la Service Request come un oggetto, istanza della suddetta classe.
+
+\subsubsection{Actions}
+Possiamo vedere l'entità Action come il centro del componente del catalogo, ed è composta dai seguenti elementi principali: 
+\begin{itemize}
+  \item Metadata generali, come il nome, una descrizione estesa in italiano e in inglese, dei tags, un tipo, un gruppo, una categoria, e altre informazioni legate ad aspetti amministrativi e di fatturazione;
+  \item I campi della relativa form che il cliente dovrà compilare per eseguirla, con quindi le relative logiche legate ai tipi, alla validazione dei dati, alle dipendenze tra vari campi (e.g. campi che una volta compilati "abilitano" altri campi), all'autofill (e.g. campi i cui valori sono autofillati con valori di altri campi), ai valori sensibili, e così via;
+  \item Script che verrà eseguito nell'infrastruttura del cliente che andrà ad eseguire effettiva l'operazione richiesta;
+  \item Parametri dello script, che potranno essere valori dei campi, ma anche parametri aggiuntivi necessari all'esecuzione (e.g. credenziali AWS, credenziali 365, etc...)
+  \item Macchina target sulla quale dovrà essere eseguito lo script;
+\end{itemize}
+
+Alcune di queste dinamiche sono già implementate nel sistema attuale (con tutte le criticità del caso, come già discusso nel capitolo precedente), altre invece no. La cosa cruciale, però, è che tutti questi aspetti di configurazione siano personalizzabili per clienti specifici. 
+
+Dato che gli utilizzatori di questo sistema sono clienti molto grossi (Fendi, Valentino, Lavazza, per fare qualche nome), è facile immaginare come ognuno di essi abbia esigenze molto specifiche, che rendono impossibile un riutilizzo diretto delle Action tra più clienti. Allo stesso tempo, però, si vuole evitare a tutti i costi di avere infinite Action duplicate che condividono quasi tutto, con qualche piccola differenza (come succede nel sistema attuale). 
+
+E' necessario quindi implementare un sistema che preveda la possibilità di definire una sorta di struttura gerarchica, dove si configura una action "padre", che può essere "ereditata" da svariate action figlie che specificheranno soltanto le modifiche, il tutto senza intaccare l'action di default.
+
+\subsubsection{Campi}
+Insieme alle action, i campi sono componenti centrali su cui si basa gran parte del sistema. 
+Come già accennato, i campi sono entità che possono essere estremamente diversi tra loro, come campi di testo, select, select a scelta multipla, radio buttons, etc\dots
+Nel sistema attuale ci sono XX tipi di campi diversi. Questo numero è così alto perchè, per come è costruito il sistema attuale, l'informazione "type" è l'unico modo in cui il backend comunica al frontend che tipo di campo dovrà renderizzare. Infatti ci sono molti tipi diversi che però condividono la stessa logica, semplicemente magari usano due servizi diversi per recuperare i dati. Le tipologie effettive di campi sono quindi molte di meno, ed è cruciale identificarle e generalizzarle il più possibile. 
+
+L'idea generale è che la logica dei fields dovrà essere spostata lato backend, che dovrà estituire tutte le informazioni necessarie al frontend per renderizzare la form: dai tipi di campi, alle regex di validazione, ai messaggi di errore, a eventuali servizi esterni da contattare per recuperare la lista di options, piuttosto che per validare i dati, e così via.
+
+Tutto questo dovrà ovviamente essere compatibile con i requisiti di personalizazzione specificati nella sezione precedente. 
+
+Uno scenario di esempio tipico potrebbe essere il seguente: un customer utilizza una action, ma per qualche motivo ha bisogno di due campi aggiuntivi, che serviranno poi allo script che richiederà a sua volta due parametri aggiuntivi. Per alcuni campi inoltre, il cliente in questione usa regole di validazione diverse e template di autofill specifici. Queste personalizzazioni dovranno poter essere fatte senza modificare l'action e i field di default.
+
+Per quanto riguarda tipi di campi "particolari", il sistema dovrà prevedere:
+\begin{itemize}
+  \item Campi select le cui options sono specifiche per il customer (e.g. Campo "Domain", che è una select con tutti i domini del cliente);
+  \item Campi select le cui options sono globali per tutto il sistema (e.g. Campo "Country", che prevede una lista di stati uguali per tutti i clienti);
+  \item Campi select le cui options sono specifiche per il customer e per ottenerle bisogna contattare un servizio esterno, con eventuale possibilità di ricerca (e.g. Campo "Server", che è una select con tutti i server del cliente, restituiti dal servizio del CMDB Atlantis);
+  \item Campi di testo autofillati, ovvero i cui valori sono ottenuti attraverso un sistema di templating (Jinja) che usa i valori di altri campi (e.g. Campo "Logon Name", valorizzato concatenando nome e cognome dell'utente separati da, ad esempio, un punto);
+  \item Campi di testo la cui validazione avviene attraverso regex (e.g. Campo "Date", che deve rispettare il formato standard);
+  \item Campi di testo la cui validazione avviene attraverso un servizio esterno (e.g. Campo "Logon Name", che per essere validato richiede di contattare il relativo servizio di Active Directory per validare che un utente con lo stesso logon name non esiste già);
+  \item Campi con valori sensibili, i cui valori andranno quindi salvati cifrati, usando qualche algoritmo di cifratura simmetrica (e.g. Campo "Password");
+  \item Campi "misti", composti da più "sotto-campi" con caratteristiche diverse (e.g. Campo "UPN", che è composto dal logon name, una chiocciola, e il valore di una select le cui options sono la lista di domini del cliente);
+\end{itemize}
+
+E' importante che il sistema sia progettato in modo scalabile, in modo che se in futuro dovesse aggiungersi un'altra tipologia di campo, lo si potrà implementare con il minimo effort possibile.
+
+\subsubsection{Consistenza delle configurazioni e delle esecuzioni}
+% TODO
+Sarà necessario implementare un sistema di monitoraggio della consistenza delle configurazioni del catalogo, in modo da evitare che si possano creare delle configurazioni non valide, che poi porterebbero a errori in fase di esecuzione delle SR.
+
+Ad esempio, se per una action si specifica un campo di tipo \texttt{select}, le cui options sono ottenute da parametri specifici per il customer, ma per quel customer non sono stati definiti tali parametri, il sistema dovrà segnalare questa incongruenza tramite un qualche sistema di alerting (e.g. email, ticket, dashboard di monitoraggio).
+Oppure, se una action è configurata per essere eseguita su un certo tipo di macchina ma tra i campi dell'action non non c'è quello necessario per selezionarla, il sistema dovrà segnalare questa incongruenza.
+
+In modo analogo dovrà essere implementato un sistema di monitoraggio della consistenza delle esecuzioni delle SR, in modo da poter segnalare eventuali errori che possono essere accaduti durante l'esecuzione, come ad esempio una SR ferma in uno stato "intermedio" (e.g. \texttt{NEW}) per troppo tempo, oppure una SR che ha iniziato l'esecuzione (quindi in \texttt{PENDING}) ma non è mai arrivata a completamento (quindi in \texttt{COMPLETED} o \texttt{ERROR}) entro un certo tempo limite (e.g. 2 ore).
+
+\subsubsection{Additional script parameters}
+Un'altra tematica che dovrà essere gestita è quella dei parametri degli script. Nel vecchio sistema c'era un controllo granulare su ogni singolo parametro, che era legato allo script di una action ed eventualmente a un campo della relativa Service Request. In pratica, a ogni script venivano passati come parametri tutti i campi della action con i relativi valori, più alcuni parametri aggiuntivi non legati ad alcun campo (e.g. Server Exchange, AD Sync Server, credenziali varie). Questa dinamica dei parametri aggiuntivi avveniva attraverso la definizione di parametri con chiave esterna sul campo impostata a NULL, che venivano poi intercettati dalla stored procedure relativa alla generazione della strina dei parametri che, con degli if con valori hard-coded (e.g. \texttt{IF @ParamName = 'ServerExc' BEGIN ...}) venivano valorizzati di conseguenza, recuperando le informazioni con delle logiche custom e non standardizzate.
+
+Nel nuovo sistema, sarà necessario standardizzare queste dinamiche, trovando il modo di poter definire in fase di configurazione delle action i parametri aggiuntivi di cui avranno bisogno oltre a quelli dei campi, e generalizzare il più possibile la logica implementativa, in modo che se si dovessero aggiungere dei nuovi "gruppi" di parametri aggiuntivi (e.g. credenziali AWS, credenziali O365, etc...) potrà essere fatto nel modo più efficiente possibile.
+
+\subsubsection{Configurazine della macchina target}
+Nel vecchio sistema le Service Requests venivano eseguite esclusivamente sui Domain Controller dei clienti. Nello specifico, ogni DC eseguiva un agente, che tramite \textit{polling} controllava periodicamente se ci fossero delle Service Request in stato \texttt{PENDING} con il campo \texttt{domain} combaciante. 
+
+Sarà necessario riprogettare anche questa parte dell'architettura, in quanto poco efficiente e molto limitante per design. Quindi, oltre a riprogettare queste dinamiche sarà anche necessario prevedere la possibilità di scegliere durante la configurazione di una Action, di eseguire le relative SR anche su altri tipi di macchine, come worker interni a Elmec, piuttosto che ad altri tipi di macchine nella rete del cliente diverse dal Domain Controller (e.g. Server Exchange). Dovrà inoltre essere possibile scegliere di eseguire le SR anche attraverso il vecchio flusso, in modo da poter continuare a supportare entrambi i sistemi, almeno inizialmente.
+
+\subsection{Esecuzione delle Service Requests}
+Nel sistema attuale, l'esecuzione delle SR avviene secondo questa sequenza di eventi principali:
+
+\begin{enumerate}
+    \item Il frontend invia la richiesta di creazione di una nuova SR al servizio REST (\texttt{SRPWebServiceREST}), con tutti i dati necessari (campi compilati, customer, action, etc\dots);
+    \item Il servizio REST valida i dati, e se sono corretti crea la SR e i relativi valori dei campi nel database, settandola in stato \texttt{NEW};
+    \item Un job SSIS, ogni minuto, controlla se ci sono SR in stato \texttt{NEW}, e se ne trova le elabora spostandole negli stati successivi (e.g. \texttt{WAITING FOR APPROVAL}, \texttt{PENDING}, \texttt{ASSIGNED}, etc\dots) a seconda della configurazione della action e del customer;
+    \item Quando la SR è in stato \texttt{PENDING}, significa che è pronta per essere eseguita dall'agente sul DC del cliente;
+    \item Ogni 10 secondi, l'agente sul DC del cliente controlla se ci sono SR in stato \texttt{PENDING} per il suo dominio (attraverso delle chiamate al servizio SOAP (\texttt{SRPWebService}));
+    \item Se ne trova, per ognuna, scarica il relativo script, lo esegue, e aggiorna lo stato della SR a \texttt{COMPLETED} o \texttt{ERROR} a seconda dell'esito dell'esecuzione (attraverso il servizio SOAP);
+\end{enumerate}
+
+E' già stato discusso nel capitolo precedente come questo flusso abbia numerose criticità, che lo rendono inefficiente e poco scalabile.
+Sarà quindi necessario riprogettarlo completamente, tenendo in considerazione la possibilità di eseguire le SR su macchine diverse dai DC, e la possibilità di eseguirle anche su macchine interne a Elmec, e anche macchine virtuali.
+
+Elmec ha già un sistema di \textit{provisioning} interno, chiamato \textit{Provision Prime}, che si occupa di eseguire dei playbook Ansible sulle macchine (interne, esterne, e anche virtuali), e che potrebbe essere sfruttato per questo scopo. Sarà quindi necessario analizzare questo sistema, e capire se e come può essere integrato nel nuovo flusso di esecuzione delle SR, in modo da evitare il polling degli agenti sui DC, e avere un sistema in generale più affidabile ed efficiente.
+
+Un limite che va rispettato, però, è che gli script delle action sono tutti in PowerShell, e non è possibile modificarli. Questo perchè sono molto numerosi e sono stati sviluppati negli anni, sono stati testati e validati per ogni singolo cliente, e sono mantenuti da reparti diversi di Elmec. Quindi, anche se il flusso di esecuzione delle SR verrà riprogettato, gli script dovranno essere eseguiti così come sono. Questo ovviamente non vale per i nuovi script che verranno sviluppati in futuro, che potranno essere progettati sfruttando le nuove tecnologie.
+\subsection{Import delle anagrafiche}
