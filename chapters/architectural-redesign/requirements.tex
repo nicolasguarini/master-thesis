@@ -52,7 +52,6 @@ Per quanto riguarda tipi di campi "particolari", il sistema dovrà prevedere:
 E' importante che il sistema sia progettato in modo scalabile, in modo che se in futuro dovesse aggiungersi un'altra tipologia di campo, lo si potrà implementare con il minimo effort possibile.
 
 \subsubsection{Consistenza delle configurazioni e delle esecuzioni}
-% TODO
 Sarà necessario implementare un sistema di monitoraggio della consistenza delle configurazioni del catalogo, in modo da evitare che si possano creare delle configurazioni non valide, che poi porterebbero a errori in fase di esecuzione delle SR.
 
 Ad esempio, se per una action si specifica un campo di tipo \texttt{select}, le cui options sono ottenute da parametri specifici per il customer, ma per quel customer non sono stati definiti tali parametri, il sistema dovrà segnalare questa incongruenza tramite un qualche sistema di alerting (e.g. email, ticket, dashboard di monitoraggio).
