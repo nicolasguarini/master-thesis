@@ -14,20 +14,7 @@ La nuova architettura proposta per il sistema SRM, riportata in figura \ref{fig:
 
 
 \subsection{Componenti principali}
-La nuova architettura del sistema SRM è composta dai seguenti componenti principali:
-\begin{itemize}
-    \item Frontend web (Vue.js)
-    \item Servizi REST (Django REST Framework)
-    \item Sistema di autenticazione e autorizzazione (PyElmecAuth)
-    \item Database PostgreSQL
-    \item Database Redis
-    \item Sistema di caching (Memcached)
-    \item Message Broker (Redis)
-    \item Task Queue (Celery)
-    \item Sistema di provisioning (Provision Prime)
-    \item Sistema di monitoraggio e logging (New Relic)
-    \item Sistemi di containerizzazione e orchestrazione dei container (Docker \& Kubernetes)
-\end{itemize}
+La nuova architettura del sistema SRM è composta dai seguenti componenti principali.
 
 \subsubsection{Frontend}
 Saranno sviluppati due frontend web separati per gli utenti finali e per gli amministratori di sistema, entrambi basati su Vue.js. Questi frontend comunicheranno con i servizi REST tramite API HTTP/HTTPS.
@@ -50,3 +37,28 @@ Questi servizi saranno responsabili della logica di business, della gestione del
 L'autenticazione e l'autorizzazione saranno gestite tramite la libreria PyElmecAuth sviluppata internamente, che si interfaccerà con il sistema di gestione delle identità aziendale per garantire un accesso sicuro e controllato ai servizi REST.
 
 Sarà quindi necessario integrare in SRM un sistema di permessi granulare per garantire che gli utenti possano accedere solo alle risorse e alle funzionalità per cui sono autorizzati, basato sui ruoli definiti dall'Identity Provider aziendale.
+
+\subsubsection{Sistema di caching}
+Sarà necessario implementare un sistema di caching per migliorare le prestazioni del sistema e ridurre il carico sui database.
+
+In particolare, verrano cachate le risposte delle chiamate a servizi esterni, come ad esempio le API di terze parti necessarie per validare alcuni campi, piuttosto che chiamate per recuperare informazioni sui clienti, per ridurre i tempi di risposta e migliorare l'esperienza utente. Il tempo di vita (TTL) delle cache dovrà essere configurabile in base alle esigenze specifiche di ogni tipo di dato.
+
+\subsubsection{Message Broker e Task Queue}
+Per gestire le operazioni asincrone e migliorare la scalabilità del sistema, verrà utilizzato un Message Broker (ad esempio RabbitMQ, Apache Kafka, Redis, \dots) in combinazione con una Task Queue (ad esempio Celery).
+
+Questo è necessario in quanto il ciclo di vita delle SR è molto complesso e prevede molte operazioni che possono richiedere tempi di esecuzione lunghi, come ad esempio l'invio di email, il mantenimento dei ticket HDA, l'integrazione con sistemi esterni, ecc. Utilizzando un sistema di messaggistica e code di task, queste operazioni potranno essere eseguite in background, senza bloccare il flusso principale dell'applicazione.
+
+\subsubsection{Sistema di provisioning}
+Sarà anche necessario integrare un sistema di provisioning per eseguire gli script relativi alle SR e quelli di import delle anagrafiche direttamente nella rete dei clienti. Questo sistema dovrà essere sicuro, affidabile e scalabile, in modo da poter gestire un gran numero di richieste di provisioning contemporaneamente.
+
+Elmec ha già un suo sistema di provisioning chiamato \textit{Provision Prime}, che verrà integrato con il nuovo sistema SRM per eseguire gli script in modo efficiente e sicuro.
+
+\subsubsection{Sistema di monitoraggio e logging}
+Per garantire la stabilità e l'affidabilità del sistema, sarà necessario integrare un sistema di monitoraggio e logging. Questo sistema permetterà di tracciare le performance del sistema, identificare eventuali problemi e analizzare i log per risolvere i bug. Saranno utilizzati strumenti come Prometheus, Grafana, New Relic o altri strumenti simili per implementare questo sistema.
+
+Verranno tracciate sia le metriche di sistema (CPU, memoria, utilizzo del database, tempi di risposta delle API, ecc.) sia i log delle applicazioni (errori, avvisi, informazioni di debug, ecc.), in modo da avere sempre una visione completa dello stato del sistema, ed avere la possibilità di lanciare allarmi automatici in caso di problemi (e.g. se il numero di risposte andate in 500 (Internal Server Error) nell'ultima ora è >= 1\%).
+
+\subsubsection{Sistema di containerizzazione e orchestrazione dei container}
+Per facilitare il deployment, la scalabilità e la gestione del sistema, verrà utilizzato un sistema di containerizzazione (Docker) in combinazione con un sistema di orchestrazione dei container (Kubernetes).
+
+Questo permetterà di isolare le diverse componenti del sistema, semplificare il processo di deployment e garantire una maggiore resilienza e scalabilità del sistema, tramite funzionalità apposite di Kubernetes come repliche, chronjob, scaling automatico dei pods, etc...
