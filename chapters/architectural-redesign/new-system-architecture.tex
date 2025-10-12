@@ -1,9 +1,8 @@
-\section{Archietttura del nuovo sistema}
+\section{New System Architecture}
 
-Dopo aver raccolto e definito i requisiti per il nuovo sistema SRM attraverso varie riunioni con gli stakeholder e l'analisi del sistema attuale (SRP), è stato possibile progettare una nuova architettura per il sistema che permetta di soddisfare tali requisiti in modo efficiente e scalabile.
+After gathering and defining the requirements for the new \textit{ServiceRequestManager (SRM)} system through various meetings with stakeholders and analysis of the current system (SRP), it has been possible to design a new architecture for the system that allows for efficient and scalable satisfaction of these requirements.
 
-
-La nuova architettura proposta per il sistema SRM, riportata in figura \ref{fig:new-system-architecture}, è basata su un'architettura a microservizi, che consente una maggiore modularità, scalabilità e facilità di manutenzione rispetto all'architettura monolitica del sistema SRP attuale \cite{from_monolithic_architecture_to_microservices_architecture}.
+The proposed new architecture for the SRM system, shown in Figure \ref{fig:new-system-architecture}, is based on a \textbf{microservices architecture}, which allows for greater modularity, scalability, and ease of maintenance compared to the distributed-monolithic architecture of the current SRP system \cite{from_monolithic_architecture_to_microservices_architecture}.
 
 \begin{figure}[ht]
     \centering
@@ -13,52 +12,50 @@ La nuova architettura proposta per il sistema SRM, riportata in figura \ref{fig:
 \end{figure}
 
 
-\subsection{Componenti principali}
-L'architettura del sistema SRM è composta dai seguenti componenti principali.
+\subsection{Main Components}
+The SRM system architecture is composed of the following main components.
 
 \subsubsection{Frontend}
-Saranno sviluppati due frontend web separati per gli utenti finali e per gli amministratori di sistema, entrambi basati su Vue.js. Questi frontend comunicheranno con i servizi REST tramite API HTTP/HTTPS.
+Two separate web frontends will be developed for end-users and system administrators. These frontends will communicate with the REST services via HTTP/HTTPS APIs.
 
-Grazie al fatto che la logica di business è stata spostata nei servizi REST, i frontend saranno più leggeri e facili da mantenere, permettendo una maggiore flessibilità nell'implementazione di nuove funzionalità e miglioramenti dell'interfaccia utente. Questo permette anche di integrare un'applicazione mobile in futuro, che potrà utilizzare le stesse API.
+Due to the business logic being moved to the REST services, the frontends will be lighter and easier to maintain, allowing for greater flexibility in implementing new functionalities and user interface improvements \cite{benefits_issues_micro_frontends}. This also allows for the future integration of a mobile application, which can use the same APIs.
 
-\subsubsection{Servizi REST}
-REST (Representational State Transfer) è uno stile architetturale per la progettazione di servizi web che sfrutta i protocolli HTTP per la comunicazione tra client e server \cite{rest}. L'idea di base è che le risorse di un sistema (utenti, ordini, documenti, ecc.) vengano esposte attraverso un'interfaccia uniforme, tipicamente HTTP, usando \cite{rest}:
+\subsubsection{REST Services}
+REST (Representational State Transfer) is an architectural style for designing web services that leverages HTTP protocols for communication between client and server \cite{rest}. The basic idea is that a system's resources (users, orders, documents, etc.) are exposed through a uniform interface, typically HTTP, using \cite{rest}:
 \begin{itemize}
-    \item URL per identificare le risorse (\texttt{/api/catalog/actions/123/});
-    \item Verbi HTTP per operare sulle risorse (\texttt{GET}, \texttt{POST}, \texttt{PUT}, \texttt{DELETE}, ...);
-    \item Rappresentazioni delle risorse in formati standard (JSON, XML, ...).
+ \item URLs to identify resources (e.g., \texttt{/api/catalog/actions/123/});
+ \item HTTP verbs to operate on resources (\texttt{GET}, \texttt{POST}, \texttt{PUT}, \texttt{DELETE}, ...);
+ \item Representations of resources in standard formats (JSON, XML, ...).
 \end{itemize}
 
-I servizi REST saranno sviluppati utilizzando Django REST Framework, che offre un'architettura robusta e scalabile per la gestione delle API \cite{django_rest_framework}. 
+These services will be responsible for business logic, user request management, and interaction with databases and other system components.
 
-Questi servizi saranno responsabili della logica di business, della gestione delle richieste degli utenti e dell'interazione con i database e altri componenti del sistema.
+\subsubsection{Authentication and Authorization System}
+Authentication and authorization will be managed through the internally developed library, PyElmecAuth or GoElmecAuth (depending on the implementation language), which will interface with the corporate identity management system to ensure secure and controlled access to the REST services.
 
-\subsubsection{Sistema di autenticazione e autorizzazione}
-L'autenticazione e l'autorizzazione saranno gestite tramite la libreria PyElmecAuth sviluppata internamente, che si interfaccerà con il sistema di gestione delle identità aziendale per garantire un accesso sicuro e controllato ai servizi REST.
+It will therefore be necessary to integrate a granular permission system into SRM to ensure that users can only access the resources and functionalities for which they are authorized, based on the roles defined by the corporate Identity Provider.
 
-Sarà quindi necessario integrare in SRM un sistema di permessi granulare per garantire che gli utenti possano accedere solo alle risorse e alle funzionalità per cui sono autorizzati, basato sui ruoli definiti dall'Identity Provider aziendale.
+\subsubsection{Caching System}
+A caching system will be required to improve system performance and reduce the load on the databases.
 
-\subsubsection{Sistema di caching}
-Sarà necessario implementare un sistema di caching per migliorare le prestazioni del sistema e ridurre il carico sui database.
+In particular, responses from calls to external services will be cached, such as third-party APIs needed to validate some fields, or calls to retrieve customer information, to reduce response times and improve the user experience. The time-to-live (TTL) of the caches must be configurable based on the specific needs of each data type.
 
-In particolare, verrano cachate le risposte delle chiamate a servizi esterni, come ad esempio le API di terze parti necessarie per validare alcuni campi, piuttosto che chiamate per recuperare informazioni sui clienti, per ridurre i tempi di risposta e migliorare l'esperienza utente. Il tempo di vita (TTL) delle cache dovrà essere configurabile in base alle esigenze specifiche di ogni tipo di dato.
+\subsubsection{Message Broker and Task Queue}
+To manage asynchronous operations and improve system scalability, a Message Broker (e.g., RabbitMQ, Apache Kafka, Redis, \dots) will be used in combination with a Task Queue (e.g., Celery).
 
-\subsubsection{Message Broker e Task Queue}
-Per gestire le operazioni asincrone e migliorare la scalabilità del sistema, verrà utilizzato un Message Broker (ad esempio RabbitMQ, Apache Kafka, Redis, \dots) in combinazione con una Task Queue (ad esempio Celery).
+This is necessary as the SR lifecycle is very complex and involves many operations that can require long execution times \cite{azioni_gestione_srp}, such as sending emails, maintaining HDA\footnote{HDA (Help Desk Advanced) is a web-based ticketing and service management system developed by Zucchetti. It enables organizations to manage tickets, incidents, and support processes through a centralized platform \cite{hda}.} tickets, integration with external systems, etc. By using a messaging and task queue system, these operations can be executed in the background, without blocking the application's main flow \cite{queue_model_relating_sync_async_communication}.
 
-Questo è necessario in quanto il ciclo di vita delle SR è molto complesso e prevede molte operazioni che possono richiedere tempi di esecuzione lunghi \cite{azioni_gestione_srp}, come ad esempio l'invio di email, il mantenimento dei ticket HDA, l'integrazione con sistemi esterni, ecc. Utilizzando un sistema di messaggistica e code di task, queste operazioni potranno essere eseguite in background, senza bloccare il flusso principale dell'applicazione \cite{queue_model_relating_sync_async_communication}.
+\subsubsection{Provisioning System}
+It will also be necessary to integrate a provisioning system to execute the scripts related to SRs and those for master data import directly within the clients' networks. This system must be secure, reliable, and scalable, in order to be able to manage a large number of provisioning requests simultaneously.
 
-\subsubsection{Sistema di provisioning}.
-Sarà anche necessario integrare un sistema di provisioning per eseguire gli script relativi alle SR e quelli di import delle anagrafiche direttamente nella rete dei clienti. Questo sistema dovrà essere sicuro, affidabile e scalabile, in modo da poter gestire un gran numero di richieste di provisioning contemporaneamente.
+Elmec already has its own provisioning system called \textit{Provision Prime} \cite{provision_prime_git}, which will be integrated with the new SRM system to execute scripts efficiently and securely.
 
-Elmec ha già un suo sistema di provisioning chiamato \textit{Provision Prime}, che verrà integrato con il nuovo sistema SRM per eseguire gli script in modo efficiente e sicuro.
+\subsubsection{Monitoring and Logging System}
+To ensure the stability and reliability of the system, a monitoring and logging system will be required. This system will allow tracking system performance, identifying any problems, and analyzing logs to resolve bugs. Tools such as Prometheus, Grafana, New Relic, or other similar tools will be used to implement this system.
 
-\subsubsection{Sistema di monitoraggio e logging}
-Per garantire la stabilità e l'affidabilità del sistema, sarà necessario integrare un sistema di monitoraggio e logging. Questo sistema permetterà di tracciare le performance del sistema, identificare eventuali problemi e analizzare i log per risolvere i bug. Saranno utilizzati strumenti come Prometheus, Grafana, New Relic o altri strumenti simili per implementare questo sistema.
+Both system metrics (CPU, memory, database usage, API response times, etc.) and application logs (errors, warnings, debug information, etc.) will be tracked, in order to always have a complete view of the system status, and to have the possibility of launching automatic alarms in case of problems (e.g., if the number of responses resulting in 500 (Internal Server Error) in the last hour is $\ge 1\%$).
 
-Verranno tracciate sia le metriche di sistema (CPU, memoria, utilizzo del database, tempi di risposta delle API, ecc.) sia i log delle applicazioni (errori, avvisi, informazioni di debug, ecc.), in modo da avere sempre una visione completa dello stato del sistema, ed avere la possibilità di lanciare allarmi automatici in caso di problemi (e.g. se il numero di risposte andate in 500 (Internal Server Error) nell'ultima ora è >= 1\%).
+\subsubsection{Containerization and Container Orchestration System}
+To facilitate system deployment, scalability, and management, a containerization system (Docker) will be used in combination with a container orchestration system (Kubernetes).
 
-\subsubsection{Sistema di containerizzazione e orchestrazione dei container}
-Per facilitare il deployment, la scalabilità e la gestione del sistema, verrà utilizzato un sistema di containerizzazione (Docker) in combinazione con un sistema di orchestrazione dei container (Kubernetes).
-
-Questo permetterà di isolare le diverse componenti del sistema, semplificare il processo di deployment e garantire una maggiore resilienza e scalabilità del sistema, tramite funzionalità come repliche, chronjob, scaling automatico dei pods, e così via \cite{kubernetes}.
+This will allow isolating the different system components, simplifying the deployment process, and ensuring greater resilience and scalability of the system, through functionalities such as replicas, chronjobs, automatic scaling of pods, and so on \cite{kubernetes}.

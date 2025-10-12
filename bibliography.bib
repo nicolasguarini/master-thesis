@@ -191,3 +191,26 @@ abstract = {The problem of comparing specifications that use asynchronous commun
   month        = {04},
   day          = {02}},
 }
+
+@InProceedings{polling,
+author="Van de Vyvere, Brecht
+and Colpaert, Pieter
+and Verborgh, Ruben",
+editor="Bielikova, Maria
+and Mikkonen, Tommi
+and Pautasso, Cesare",
+title="Comparing a Polling and Push-Based Approach for Live Open Data Interfaces",
+booktitle="Web Engineering",
+year="2020",
+publisher="Springer International Publishing",
+address="Cham",
+pages="87--101",
+abstract="There are two mechanisms for publishing live changing resources on the Web: a client can pull the latest state of a resource or the server pushes updates to the client. In the state of the art, it is clear that pushing delivers a lower latency compared to pulling, however, this has not been tested for an Open Data usage scenario where 15 k clients are not an exception. Also, there are no general guidelines when to use a polling or push-based approach for publishing live changing resources on the Web. We performed (i) a field report of live Open datasets on the European and U.S. Open Data portal and (ii) a benchmark between HTTP polling and Server-Sent Events (SSE) under a load of 25 k clients. In this article, we compare the scalability and latency of updates on the client between polling and pushing. For the scenario where users want to receive an update as fast as possible, we found that SSE excels above polling in three aspects: lower CPU usage on the server, lower latency on the client and more than double the number of clients that can be served. However, considering that users can perceive a certain maximum latency on the client (MAL) of an update acceptable, we describe in this article at which MAL point a polling interface can be able to serve a higher number of clients than pushing. Open Data publishers can use these insights to determine which mechanism is the most cost-effective for the usage scenario they foresee of their live updating resources on the Web.",
+isbn="978-3-030-50578-3"
+}
+
+@online{hda,
+  title = {HDA - Help Desk Advanced},
+  url = {https://pat.eu/en/products/helpdeskadvanced/},
+  keywords = {hda, help desk, ticketing system, service management, zucchetti}
+}
