@@ -84,7 +84,7 @@ The naming convention for attributes and tables is inconsistent and unclear. The
 
 \subsection{Maintenance and Operational Challenges}
 
-According to information discussed in an internal meeting (personal communication, April 2, 2025), the daily management of the system is made complex by several inefficiencies and obsolete design choices.
+According to information discussed in an internal meeting \cite{requirements_meeting}, the daily management of the system is made complex by several inefficiencies and obsolete design choices.
 
 The current system design does not allow for the effective reuse of Service Requests and catalog configurations. Consequently, every modification or addition requires the creation of a new Service Request, even for small variations, leading to a innefficient and difficult-to-manage catalog, consisting of numerous duplicate SRs and fields. This, while functional, is not a scalable approach and leads to significant inefficiencies in catalog management itself. For example, if a Service Request needs to be modified for all clients who use it, the operator will have to modify not only the SR in question but also all the duplicate SRs for each client, with the risk of forgetting a modification or making mistakes. This approach, although probably conceived to prevent error propagation, makes the catalog difficult to navigate and maintain.
 

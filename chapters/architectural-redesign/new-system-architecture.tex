@@ -3,7 +3,7 @@
 Dopo aver raccolto e definito i requisiti per il nuovo sistema SRM attraverso varie riunioni con gli stakeholder e l'analisi del sistema attuale (SRP), è stato possibile progettare una nuova architettura per il sistema che permetta di soddisfare tali requisiti in modo efficiente e scalabile.
 
 
-La nuova architettura proposta per il sistema SRM, riportata in figura \ref{fig:new-system-architecture}, è basata su un'architettura a microservizi, che consente una maggiore modularità, scalabilità e facilità di manutenzione rispetto all'architettura monolitica del sistema SRP attuale.
+La nuova architettura proposta per il sistema SRM, riportata in figura \ref{fig:new-system-architecture}, è basata su un'architettura a microservizi, che consente una maggiore modularità, scalabilità e facilità di manutenzione rispetto all'architettura monolitica del sistema SRP attuale \cite{from_monolithic_architecture_to_microservices_architecture}.
 
 \begin{figure}[ht]
     \centering
@@ -29,7 +29,7 @@ REST (Representational State Transfer) è uno stile architetturale per la proget
     \item Rappresentazioni delle risorse in formati standard (JSON, XML, ...).
 \end{itemize}
 
-I servizi REST saranno sviluppati utilizzando Django REST Framework, che offre un'architettura robusta e scalabile per la gestione delle API. 
+I servizi REST saranno sviluppati utilizzando Django REST Framework, che offre un'architettura robusta e scalabile per la gestione delle API \cite{django_rest_framework}. 
 
 Questi servizi saranno responsabili della logica di business, della gestione delle richieste degli utenti e dell'interazione con i database e altri componenti del sistema.
 
@@ -46,9 +46,9 @@ In particolare, verrano cachate le risposte delle chiamate a servizi esterni, co
 \subsubsection{Message Broker e Task Queue}
 Per gestire le operazioni asincrone e migliorare la scalabilità del sistema, verrà utilizzato un Message Broker (ad esempio RabbitMQ, Apache Kafka, Redis, \dots) in combinazione con una Task Queue (ad esempio Celery).
 
-Questo è necessario in quanto il ciclo di vita delle SR è molto complesso e prevede molte operazioni che possono richiedere tempi di esecuzione lunghi, come ad esempio l'invio di email, il mantenimento dei ticket HDA, l'integrazione con sistemi esterni, ecc. Utilizzando un sistema di messaggistica e code di task, queste operazioni potranno essere eseguite in background, senza bloccare il flusso principale dell'applicazione.
+Questo è necessario in quanto il ciclo di vita delle SR è molto complesso e prevede molte operazioni che possono richiedere tempi di esecuzione lunghi \cite{azioni_gestione_srp}, come ad esempio l'invio di email, il mantenimento dei ticket HDA, l'integrazione con sistemi esterni, ecc. Utilizzando un sistema di messaggistica e code di task, queste operazioni potranno essere eseguite in background, senza bloccare il flusso principale dell'applicazione \cite{queue_model_relating_sync_async_communication}.
 
-\subsubsection{Sistema di provisioning}
+\subsubsection{Sistema di provisioning}.
 Sarà anche necessario integrare un sistema di provisioning per eseguire gli script relativi alle SR e quelli di import delle anagrafiche direttamente nella rete dei clienti. Questo sistema dovrà essere sicuro, affidabile e scalabile, in modo da poter gestire un gran numero di richieste di provisioning contemporaneamente.
 
 Elmec ha già un suo sistema di provisioning chiamato \textit{Provision Prime}, che verrà integrato con il nuovo sistema SRM per eseguire gli script in modo efficiente e sicuro.
@@ -61,4 +61,4 @@ Verranno tracciate sia le metriche di sistema (CPU, memoria, utilizzo del databa
 \subsubsection{Sistema di containerizzazione e orchestrazione dei container}
 Per facilitare il deployment, la scalabilità e la gestione del sistema, verrà utilizzato un sistema di containerizzazione (Docker) in combinazione con un sistema di orchestrazione dei container (Kubernetes).
 
-Questo permetterà di isolare le diverse componenti del sistema, semplificare il processo di deployment e garantire una maggiore resilienza e scalabilità del sistema, tramite funzionalità apposite di Kubernetes come repliche, chronjob, scaling automatico dei pods, etc...
+Questo permetterà di isolare le diverse componenti del sistema, semplificare il processo di deployment e garantire una maggiore resilienza e scalabilità del sistema, tramite funzionalità come repliche, chronjob, scaling automatico dei pods, e così via \cite{kubernetes}.

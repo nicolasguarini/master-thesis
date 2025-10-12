@@ -1,5 +1,5 @@
 \section{Requisiti del nuovo sistema}
-Il sistema può essere suddiviso in tre componenti principali: Struttura e gestione del catalogo; Esecuzione delle Service Requests, Import delle anagrafiche.
+Il sistema può essere suddiviso in tre componenti principali: \textbf{Struttura e gestione del catalogo}; \textbf{Esecuzione delle Service Requests}, \textbf{Import delle anagrafiche}.
 Procediamo quindi ad analizzare i requisiti di ognuna di queste aree.
 
 \subsection{Struttura e Gestione del Catalogo}
@@ -20,18 +20,18 @@ Possiamo vedere l'entità Action come il centro del componente del catalogo, ed 
   \item Macchina target sulla quale dovrà essere eseguito lo script;
 \end{itemize}
 
-Alcune di queste dinamiche sono già implementate nel sistema attuale (con tutte le criticità del caso, come già discusso nel capitolo precedente), altre invece no. La cosa cruciale, però, è che tutti questi aspetti di configurazione siano personalizzabili per clienti specifici. 
+Alcune di queste dinamiche sono già implementate nel sistema attuale (con tutte le criticità del caso, come già discusso nel capitolo precedente), altre invece no. La cosa cruciale, però, è che tutti questi aspetti di configurazione siano personalizzabili per clienti specifici e per action specifiche \cite{requirements_meeting}. 
 
-Dato che gli utilizzatori di questo sistema sono clienti molto grossi (Fendi, Valentino, Lavazza, per fare qualche nome), è facile immaginare come ognuno di essi abbia esigenze molto specifiche, che rendono impossibile un riutilizzo diretto delle Action tra più clienti. Allo stesso tempo, però, si vuole evitare a tutti i costi di avere infinite Action duplicate che condividono quasi tutto, con qualche piccola differenza (come succede nel sistema attuale). 
+Dato che gli utilizzatori di questo sistema sono clienti molto grossi (Fendi, Valentino, Lavazza, per fare qualche nome), è facile immaginare come ognuno di essi abbia esigenze molto specifiche, che rendono impossibile un riutilizzo diretto delle Action tra più clienti. Allo stesso tempo, però, si vuole evitare a tutti i costi di avere infinite Action duplicate che condividono quasi tutto, con qualche piccola differenza (come succede nel sistema attuale \cite{requirements_meeting}). 
 
 E' necessario quindi implementare un sistema che preveda la possibilità di definire una sorta di struttura gerarchica, dove si configura una action "padre", che può essere "ereditata" da svariate action figlie che specificheranno soltanto le modifiche, il tutto senza intaccare l'action di default.
 
 \subsubsection{Campi}
 Insieme alle action, i campi sono componenti centrali su cui si basa gran parte del sistema. 
 Come già accennato, i campi sono entità che possono essere estremamente diversi tra loro, come campi di testo, select, select a scelta multipla, radio buttons, etc\dots
-Nel sistema attuale ci sono XX tipi di campi diversi. Questo numero è così alto perchè, per come è costruito il sistema attuale, l'informazione "type" è l'unico modo in cui il backend comunica al frontend che tipo di campo dovrà renderizzare. Infatti ci sono molti tipi diversi che però condividono la stessa logica, semplicemente magari usano due servizi diversi per recuperare i dati. Le tipologie effettive di campi sono quindi molte di meno, ed è cruciale identificarle e generalizzarle il più possibile. 
+Nel sistema attuale ci sono 86 tipi di campi diversi. Questo numero è così alto perchè, per come è costruito il sistema attuale, l'informazione "type" è l'unico modo in cui il backend comunica al frontend che tipo di campo dovrà renderizzare \cite{srp_webservicerest_git}. Infatti ci sono molti tipi diversi che però condividono la stessa logica, semplicemente magari usano due servizi diversi per recuperare i dati. Le tipologie effettive di campi sono quindi molte di meno, ed è cruciale identificarle e generalizzarle il più possibile. 
 
-L'idea generale è che la logica dei fields dovrà essere spostata lato backend, che dovrà estituire tutte le informazioni necessarie al frontend per renderizzare la form: dai tipi di campi, alle regex di validazione, ai messaggi di errore, a eventuali servizi esterni da contattare per recuperare la lista di options, piuttosto che per validare i dati, e così via.
+L'idea generale è che la logica dei fields dovrà essere spostata lato backend, che dovrà estituire tutte le informazioni necessarie al frontend per renderizzare la form: dai tipi di campi, alle regex di validazione, ai messaggi di errore, a eventuali servizi esterni da contattare per recuperare la lista di options, piuttosto che per validare i dati, e così via \cite{requirements_meeting}.
 
 Tutto questo dovrà ovviamente essere compatibile con i requisiti di personalizazzione specificati nella sezione precedente. 
 
@@ -52,7 +52,7 @@ Per quanto riguarda tipi di campi "particolari", il sistema dovrà prevedere:
 E' importante che il sistema sia progettato in modo scalabile, in modo che se in futuro dovesse aggiungersi un'altra tipologia di campo, lo si potrà implementare con il minimo effort possibile.
 
 \subsubsection{Consistenza delle configurazioni e delle esecuzioni}
-Sarà necessario implementare un sistema di monitoraggio della consistenza delle configurazioni del catalogo, in modo da evitare che si possano creare delle configurazioni non valide, che poi porterebbero a errori in fase di esecuzione delle SR.
+Sarà necessario implementare un sistema di monitoraggio della consistenza delle configurazioni del catalogo \cite{requirements_meeting}, in modo da evitare che si possano creare delle configurazioni non valide, che poi porterebbero a errori in fase di esecuzione delle SR.
 
 Ad esempio, se per una action si specifica un campo di tipo \texttt{select}, le cui options sono ottenute da parametri specifici per il customer, ma per quel customer non sono stati definiti tali parametri, il sistema dovrà segnalare questa incongruenza tramite un qualche sistema di alerting (e.g. email, ticket, dashboard di monitoraggio).
 Oppure, se una action è configurata per essere eseguita su un certo tipo di macchina ma tra i campi dell'action non non c'è quello necessario per selezionarla, il sistema dovrà segnalare questa incongruenza.
@@ -82,11 +82,11 @@ Nel sistema attuale, l'esecuzione delle SR avviene secondo questa sequenza di ev
 \end{enumerate}
 
 E' già stato discusso nel capitolo precedente come questo flusso abbia numerose criticità, che lo rendono inefficiente e poco scalabile.
-Sarà quindi necessario riprogettarlo completamente, tenendo in considerazione la possibilità di eseguire le SR su macchine diverse dai DC, e la possibilità di eseguirle anche su macchine interne a Elmec, e anche macchine virtuali.
+Sarà quindi necessario riprogettarlo completamente, tenendo in considerazione la possibilità di eseguire le SR su macchine diverse dai DC, e la possibilità di eseguirle anche su macchine interne a Elmec, e anche macchine virtuali \cite{requirements_meeting}.
 
-Elmec ha già un sistema di \textit{provisioning} interno, chiamato \textit{Provision Prime}, che si occupa di eseguire dei playbook Ansible sulle macchine (interne, esterne, e anche virtuali), e che potrebbe essere sfruttato per questo scopo. Sarà quindi necessario analizzare questo sistema, e capire se e come può essere integrato nel nuovo flusso di esecuzione delle SR, in modo da evitare il polling degli agenti sui DC, e avere un sistema in generale più affidabile ed efficiente.
+Elmec ha già un sistema di \textit{provisioning} interno, chiamato \textit{Provision Prime}, che si occupa di eseguire dei playbook Ansible sulle macchine (interne, esterne, e anche virtuali) \cite{provision_prime_git}, e che potrebbe essere sfruttato per questo scopo. Sarà quindi necessario analizzare questo sistema, e capire se e come può essere integrato nel nuovo flusso di esecuzione delle SR, in modo da evitare il polling degli agenti sui DC, e avere un sistema in generale più affidabile ed efficiente \cite{requirements_meeting}.
 
-Un limite che va rispettato, però, è che gli script delle action sono tutti in PowerShell, e non è possibile modificarli. Questo perchè sono molto numerosi e sono stati sviluppati negli anni, sono stati testati e validati per ogni singolo cliente, e sono mantenuti da reparti diversi di Elmec. Quindi, anche se il flusso di esecuzione delle SR verrà riprogettato, gli script dovranno essere eseguiti così come sono. Questo ovviamente non vale per i nuovi script che verranno sviluppati in futuro, che potranno essere progettati sfruttando le nuove tecnologie.
+Un limite che va rispettato, però, è che gli script delle action sono tutti in PowerShell, e non è possibile modificarli. Questo perchè sono molto numerosi e sono stati sviluppati negli anni, sono stati testati e validati per ogni singolo cliente, e sono mantenuti da reparti diversi di Elmec. Quindi, anche se il flusso di esecuzione delle SR verrà riprogettato, gli script dovranno essere eseguiti così come sono. Questo ovviamente non vale per i nuovi script che verranno sviluppati in futuro, che potranno essere progettati sfruttando le nuove tecnologie \cite{requirements_meeting}.
 
 \subsection{Import delle anagrafiche}
 Un altro componente importante del sistema è quello che si occupa di importare le anagrafiche dei clienti, necessarie per popolare alcuni campi delle action (e.g. domini UPN, utenze, gruppi, Organizational Units (OU)\footnote{In Windows Server, an
@@ -94,4 +94,4 @@ Organizational Unit (OU) is a container within Active Directory (AD) used to log
 
 Nel sistema attuale, questa importazione avviene in modo molto simile allo scenario delle SR, ma al contrario. Avviene attraverso un agente che gira sui DC dei clienti, che periodicamente (ogni ora) (scarica ed) esegue una serie di script PowerShell per recuperare le informazioni necessarie, e le deposita in una cartella specifica del sistema (\texttt{D:\textbackslash SRPortal\textbackslash Anag\textbackslash}). Questi files vengono poi consumati da un job SSIS (uno per ogni tipologia di anagrafica, e.g. \texttt{IMP\_Anag\_AD\_Groups.dtsx}) che li importa nel database. I servizi REST espongono poi delle API per recuperare queste informazioni, che vengono usate dal frontend per popolare i campi delle action.
 
-Nel nuovo sistema sarà necessario riprogettare anche questo flusso, in modo da eliminare la dipendenza dagli agenti sui DC dei clienti. Anche in questo caso, però, gli script PowerShell non potranno essere modificati, e dovranno essere eseguiti così come sono ora. Sarà quindi necessario analizzare come integrare l'esecuzione di questi script nel nuovo flusso, magari sfruttando anche in questo caso il sistema di \textit{provisioning} interno di Elmec (\textit{Provision Prime}), in modo da ottenere un sistema più tracciato, affidabile ed efficiente.
+Nel nuovo sistema sarà necessario riprogettare anche questo flusso, in modo da eliminare la dipendenza dagli agenti sui DC dei clienti. Anche in questo caso, però, gli script PowerShell non potranno essere modificati \cite{requirements_meeting}, e dovranno essere eseguiti così come sono ora. Sarà quindi necessario analizzare come integrare l'esecuzione di questi script nel nuovo flusso, magari sfruttando anche in questo caso il sistema di \textit{provisioning} interno di Elmec (\textit{Provision Prime}), in modo da ottenere un sistema più tracciato, affidabile ed efficiente \cite{requirements_meeting}.
