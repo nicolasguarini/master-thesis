@@ -1,30 +1,30 @@
-\section{Requisiti del nuovo sistema}
-Il sistema può essere suddiviso in tre componenti principali: \textbf{Struttura e gestione del catalogo}; \textbf{Esecuzione delle Service Requests}, \textbf{Import delle anagrafiche}.
-Procediamo quindi ad analizzare i requisiti di ognuna di queste aree.
+\section{New System Requirements}
+The system can be divided into three main components: \textbf{Catalog Structure and Management}; \textbf{Service Request Execution}, and \textbf{Master Data Import}.
+The requirements for each of these areas will therefore be analyzed.
 
-\subsection{Struttura e Gestione del Catalogo}
-Questo è il componente più corposo tra i tre, e ha a che fare con tutto ciò che riguarda la definizione, la manutenzione, e la configurazione delle action che possono essere eseguite da ogni customer. Questo comprende quindi anche la gestione dei campi delle form, le personalizzazioni customer-specific, gli script, i loro parametri, la macchina target delle SR, e così via.
+\subsection{Catalog Structure and Management}
+This is the most substantial component of the three, dealing with everything concerning the definition, maintenance, and configuration of the actions executable by each customer. This therefore also includes the management of form fields, customer-specific customizations, scripts, their parameters, the target machine address retrieval logic, and so on.
 
-Prima di procedere ad analizzare i requisiti, è bene fare una precisazione sulla terminologia che verrà utilizzata: 
-per "\textit{Action}" si intende la definizione formale di un'azione che un cliente può eseguire sulla sua infrastruttura; 
-per "\textit{Service Request}", invece, si intende l'esecuzione effettiva di un'Action. 
-Se vogliamo fare un parallelismo con la OOP possiamo vedere l'Action come una classe, e la Service Request come un oggetto, istanza della suddetta classe.
+Before proceeding with the analysis of the requirements, a clarification on the terminology to be used is necessary: 
+an '\textit{Action}' is understood as the formal definition of an operation that a client can execute on its infrastructure; 
+a '\textit{Service Request}' (SR), on the other hand, is understood as the effective execution of an Action. 
+If a parallel with OOP is to be drawn, the Action can be seen as a class, and the Service Request as an object, an instance of the aforementioned class.
 
 \subsubsection{Actions}
-Possiamo vedere l'entità Action come il centro del componente del catalogo, ed è composta dai seguenti elementi principali: 
+The Action entity can be seen as the core of the catalog component, and it is composed of the following main elements: 
 \begin{itemize}
-  \item Metadata generali, come il nome, una descrizione estesa in italiano e in inglese, dei tags, un tipo, un gruppo, una categoria, e altre informazioni legate ad aspetti amministrativi e di fatturazione;
-  \item I campi della relativa form che il cliente dovrà compilare per eseguirla, con quindi le relative logiche legate ai tipi, alla validazione dei dati, alle dipendenze tra vari campi (e.g. campi che una volta compilati "abilitano" altri campi), all'autofill (e.g. campi i cui valori sono autofillati con valori di altri campi), ai valori sensibili, e così via;
-  \item Script che verrà eseguito nell'infrastruttura del cliente che andrà ad eseguire effettiva l'operazione richiesta;
-  \item Parametri dello script, che potranno essere valori dei campi, ma anche parametri aggiuntivi necessari all'esecuzione (e.g. credenziali AWS, credenziali 365, etc...)
-  \item Macchina target sulla quale dovrà essere eseguito lo script;
+  \item General metadata, such as the name, an extended description, tags, a type, a group, a category, and other information related to administrative and billing aspects;
+  \item The fields of the corresponding form that must be filled by the client for its execution, including the relative logic tied to types, data validation, dependencies between various fields (e.g., fields that, once completed, "enable" other fields), autofill (e.g., fields whose values are autofilled with values from other fields), sensitive values, and so on;
+  \item The script that will be executed in the customer's infrastructure to perform the effective required operation;
+  \item Script parameters, which may be field values, but also additional parameters necessary for execution (e.g., AWS credentials, 365 credentials, etc\dots);
+  \item The target machine on which the script must be executed.
 \end{itemize}
 
-Alcune di queste dinamiche sono già implementate nel sistema attuale (con tutte le criticità del caso, come già discusso nel capitolo precedente), altre invece no. La cosa cruciale, però, è che tutti questi aspetti di configurazione siano personalizzabili per clienti specifici e per action specifiche \cite{requirements_meeting}. 
+Some of these dynamics are already implemented in the current system (with all the critical issues of the case, as already discussed in the previous chapter), while others are not. The crucial point, however, is that all these configuration aspects must be customizable for specific customers and for specific actions \cite{requirements_meeting}. 
 
-Dato che gli utilizzatori di questo sistema sono clienti molto grossi (Fendi, Valentino, Lavazza, per fare qualche nome), è facile immaginare come ognuno di essi abbia esigenze molto specifiche, che rendono impossibile un riutilizzo diretto delle Action tra più clienti. Allo stesso tempo, però, si vuole evitare a tutti i costi di avere infinite Action duplicate che condividono quasi tutto, con qualche piccola differenza (come succede nel sistema attuale \cite{requirements_meeting}). 
+Given that the users of this system are very large clients (Fendi, Valentino, Lavazza, to name a few), it is easy to imagine that each of them has highly specific needs, which make direct reuse of Actions across multiple clients impossible. At the same time, however, the creation of infinite duplicated Actions that share almost everything, with only small differences (as happens in the current system \cite{requirements_meeting}), must be avoided. 
 
-E' necessario quindi implementare un sistema che preveda la possibilità di definire una sorta di struttura gerarchica, dove si configura una action "padre", che può essere "ereditata" da svariate action figlie che specificheranno soltanto le modifiche, il tutto senza intaccare l'action di default.
+It is therefore necessary to implement a system that provides for the possibility of defining a sort of hierarchical structure, where a "parent" action is configured, which can be "inherited" by several child actions that will specify only the modifications, all without affecting the default action.
 
 \subsubsection{Campi}
 Insieme alle action, i campi sono componenti centrali su cui si basa gran parte del sistema. 
