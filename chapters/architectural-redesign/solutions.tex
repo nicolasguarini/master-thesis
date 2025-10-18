@@ -37,18 +37,118 @@ Finally, K8s also offers native mechanisms to manage environment variables and s
 The adoption of Docker and Kubernetes therefore creates the ideal environment for the subsequent decomposition of the frontend monolith and the re-engineering of the various backend components, topics that will be covered in detail in the following sections.
 
 \subsubsection{Monolithinc Frontend Component}
+At a technological level, the chosen technology did not change compared to the existing system, which is Vue.js. However, Vue.js version 3 was used, which introduces numerous improvements compared to version 2 used in the existing system, including better performance management, a more flexible composition system, and improved support for TypeScript \cite{vue3}.
+In fact, in addition to the updated version of Vue.js, it was decided to adopt TypeScript as the development language for the frontend, in order to improve code maintainability and quality \cite{typescript}.
 
-\subsubsection{Overly Generic Backend REST Services}
+\paragraph{TypeScript} Developed in 2012 by Microsoft as free and open-source software (Apache License 2.0) \cite{typescript}, TypeScript extends JavaScript's functionalities by introducing optional static typing. The main advantage is that,  unlike JavaScript, where type errors are detected only at runtime, TypeScript allows most errors to be caught already at the \textit{build time} stage. This ensures greater code robustness and a significant reduction in production bugs. For extended projects like this one (the Service Requests component is actually only a part of a much larger customer-dedicated platform called \textit{MyElmec}), static typing significantly improves code maintainability and readability, acting as a form of implicit documentation and allowing for safer and faster refactoring.
+
+To solve the maintainability and scalability problems of the existing monolithic frontend, it was decided to move all the configuration and customization logic for field behavior (autofill, dynamic fields via external APIs, validation, dependencies, etc.) to the backend (a topic that will be explored in section \ref{sec:solution-generic-rest-service}).
+In this way, the frontend was transformed into a simple interface for display and user interaction (as it should be), significantly reducing code complexity and facilitating the implementation of new functionalities.
+In particular, the frontend is now limited to reading a JSON configuration provided by the backend, which describes the form structure, the fields to be displayed, their properties, and validation rules.
+This was also made possible thanks to the potential offered by Vue.js 3, which allows for the creation of highly dynamic and reusable components based on external data \cite{vue3}.
+
+This led to a transition from a total of 86 different "types" of fields in the existing system to only 10 generic field types:
+\begin{itemize}
+    \item Text
+    \item Numeric
+    \item File
+    \item Password
+    \item Checkbox
+    \item Select (with already defined options)
+    \item Select (with API-fetched options)
+    \item Date / DateTime
+    \item UPN (managed specifically due to its peculiarities, as it is composed of two sub-fields and has a particular validation logic)
+    \item ADOU Tree
+\end{itemize}
+
+All the various customization logics (especially the customer-specific ones) thus become transparent to the frontend, which merely interprets the configuration provided by the backend.
+The system transitioned from a component with approximately 11,000 lines of code to a component with only 1,000 lines of code, resulting in improved maintainability and ease of system extension, and with the possibility of implementing other frontends (e.g., a mobile app) with minimal effort without having to replicate all the complex field management logic.
+
+\subsubsection{Overly Generic Backend REST Services}\label{sec:solution-generic-rest-service}
+To solve the issues related to the frontend, a deep restructuring of the backend logic was necessary, especially concerning fields, moving from JSON responses of this type
+\begin{minted}[linenos,tabsize=2,breaklines]{json}
+{
+    "idAction": 455,
+    "idField": 1649,
+    "descField": "Manager",
+    "type": "ADUser",
+    "idCustomer": 42,
+    "orderN": 53,
+    "mandatory": false
+}
+\end{minted}
+
+to much more detailed and specific responses, which provide the frontend with all the necessary information for the complete rendering of the entire form, such as the following:
+\begin{minted}[linenos,tabsize=2,breaklines]{json}
+{
+    "field": {
+        "id": 3001,
+        "name": "manager",
+        "description": "Manager",
+        "type": "select",
+        "is_sensitive": false,
+        "option_source_policy": "EXTERNAL_API",
+        "external_api_config": {
+            "name": "AD_USERS",
+            "base_url": "https://q-api.elmec.com/srp/",
+            "endpoint_pattern": "api/ext/customer/IRCASPA/sr/field/data/adusers?domain={{ domain }}",
+            "http_method": "GET",
+            "headers_json": {
+                "Authorization": "{{TOKEN_TYPE}} {{TOKEN}}"
+            },
+            "response_mapping_json": {
+                "name": "userDesc",
+                "value": "user"
+            },
+            "timeout_seconds": 10,
+            "is_searchable": true,
+            "search_param_name": "search",
+            "root_parent_id": null
+        },
+        "options": null,
+        "multiple_choice": false,
+        "file_accept_mimes": null
+    },
+    "mandatory": false,
+    "validation_regex": "^[a-zA-Z0-9._]{5,20}$",
+    "validation_regex_message": "Invalid format for Manager field.",
+    "autofill_template": null,
+    "depends_on": [
+        "domain",
+        "first_name",
+        "last_name"
+    ],
+    "display_order": 26
+}
+\end{minted}
+
+In addition to modeling all possible properties of a field in a clear and structured way, the new REST services are also responsible for managing all the customization and configuration logic of the fields, with a three-level structure (which will be detailed in the chapter, dedicated to implementation aspects):
+
+\begin{enumerate}
+    \item Fields
+    \item Actions
+    \item Customers
+\end{enumerate}
+
+Broadly speaking, the idea is that each field (first level "Fields") has a set of generic properties (type, description, options, etc.) that can be further customized based on the specific action (second level "Actions") to which the field belongs (e.g., making it mandatory or not, adding validation rules, autofill logic, dependencies on other fields, etc.).
+Finally, each action can be further customized per customer (third level "Customers"), allowing the field's behavior to be adapted to the specific needs of each customer (e.g., modifying the available options in a selection field, changing validation rules, etc.), all without affecting the "original" configuration of the underlying level.
+
+This three-level structure allows for a high degree of reusability and modularity, making it possible to define generic fields that can be easily adapted to different situations without having to duplicate code or logic.
 
 \subsubsection{Dependency on the SRP Agent}
+The dependency on the agent installed at the customer site has been completely eliminated thanks to the integration of Provision Prime, an internally developed provisioning tool written in Go, which manages the execution of Ansible playbooks on remote machines, in this case, the servers within customer networks, transparently to the developer (who will simply configure the playbook and make an API call).
 
+\paragraph{Ansible} Ansible is an open-source, agentless IT automation engine used for configuration management, application deployment, intra-service orchestration, and provisioning \cite{ansible}. It is designed to be simple, powerful, and easy to use, operating over standard SSH for Linux/Unix and WinRM for Windows, thus requiring no special client software (agents) to be installed on the managed nodes \cite{ansible}. This reliance on existing transport protocols and its human-readable structure, written in YAML, contribute to its minimal learning curve and rapid adoption. The core of Ansible's functionality are \textit{Playbooks}. A Playbook is essentially a blueprint of automation tasks, structured as a YAML file, that describes a set of steps to be executed on specified hosts or groups of hosts (defined in an inventory) \cite{ansible}. They define the desired state of a system in a clear, declarative manner. Each Playbook consists of one or more plays, and each play is an ordered list of tasks. A task is a call to an Ansible module, which is the unit of code that performs a specific action, such as installing a package, copying a folder, or executing scripts. Playbooks ensure that complex, multi-tier application deployments and job executions are repeatable and reusable, transforming manual, error-prone processes into reliable, version-controlled automation.
+
+In this way, not only is the dependency on the agent, and all the associated logic, eliminated, but all the scripts related to the Service Requests, which previously resided physically inside the customers' Domain Controllers and were not tracked in any way, are now versioned.
+
+The cost of these improvements is represented by the additional logic needed to manage communications with Provision Prime, specifically the retrieval of the target machine. To implement these retrieval logics, which are highly custom for each type of target machine (e.g., Domain Controller, Exchange Server, internal workers, etc.), the \textit{Strategy} design pattern \cite{strategy_pattern} was leveraged. This pattern allows each retrieval logic to be encapsulated in a separate class, making the code more modular, extensible, and maintainable (a topic that will be explored in depth in chapter X.X).
 
 
 \subsection{Code and Data Management Issues}
+The lack of versioning and modern debugging capabilities outlined in the existing system is fundamentally addressed by centralizing all disparate logic (previously scattered across Stored Procedures and SSIS jobs) into a unified, version-controlled software project integrated with a robust CI/CD pipeline. By adopting Git as the standard Version Control System (VCS), all business logic is now treated as application code. This immediately solves the versioning problem: every change is tracked, attributed to an author, and can be reverted, enabling seamless collaboration and a full audit trail. Moreover, moving the core business logic out of the database and into a dedicated backend service (Django REST Framework) written in a modern language (Python) drastically improves debuggability, allowing developers to use powerful, standardized IDE tools to set breakpoints, inspect variables, and step through code without impacting the production database.
 
-\subsubsection{Unversioned and Undebuggable Stored Procedures}
-
-\subsubsection{Inaccessible and Unversioned SSIS Jobs}
+This strategy is completed by integrating several specific CI/CD pipelines (a topic that will be explored in depth in chapter X.X) tailored for each environment branch (\texttt{feature}, \texttt{devel}, \texttt{quality}, \texttt{main}). This setup automates the deployment process: code changes are first pushed to a dedicated task branch, reviewed, and then merged into the \texttt{devel} environment. Upon passing, the code is merged to the \texttt{quality} environment, and finally to \texttt{main} for production release. This process ensures that no logic is directly modified in a production environment, eliminating the single-point-of-failure inherent in direct database and server access. Furthermore, replacing the inaccessible, unversioned, and tightly coupled SSIS Jobs with modern, containerized async tasks (managed as code within the Git repository) breaks the strong infrastructure coupling, enhancing accessibility, facilitating collaboration, and making maintenance and debugging a safe, environment-specific activity.
 
 
 
