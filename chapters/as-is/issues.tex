@@ -71,7 +71,28 @@ SSIS packages\footnote{SQL Server Integration Services (SSIS) is a platform for 
     \label{fig:er-as-is}
 \end{figure}
 
-The analysis of the database schema, represented in figure \ref{fig:er-as-is}, has revealed a number of significant issues that affect the quality and integrity of the data managed by the SRP system.
+%\begin{figure}[htbp]
+%    \centering
+%    \includegraphics[width=\textwidth, keepaspectratio]{images/as-is/%srp_er_customers.png}
+%    \caption{AS-IS Database ER Schema (Admin / Customers)}
+%    \label{fig:er-as-is-customers}
+%\end{figure}
+%
+%\begin{figure}[htbp]
+%    \centering
+%    \includegraphics[width=0.6\textwidth]{images/as-is/srp_er_actions.png}
+%    \caption{AS-IS Database ER Schema (Catalog / Actions)}
+%    \label{fig:er-as-is-actions}
+%\end{figure}
+%
+%\begin{figure}[htbp]
+%    \centering
+%    \includegraphics[width=1\textwidth]{images/as-is/srp_er_execution.png}
+%    \caption{AS-IS Database ER Schema (Execution / Service Requests)}
+%    \label{fig:er-as-is-execution}
+%\end{figure}
+
+The analysis of the database schema, represented in figures \ref{fig:er-as-is}, has revealed a number of significant issues that affect the quality and integrity of the data managed by the SRP system.
 
 \subsubsection{Lack of Data Integrity and Consistency}
 One of the most significant problems concerns the lack of explicit referential integrity constraints. In the schema in figure \ref{fig:er-as-is}, although the relationships between tables have been inferred manually, they are not defined at the database level through the use of foreign keys. This absence prevents the database from guaranteeing data integrity \cite{referential_integrity_important_databases}: for example, a row in a child table could refer to a non-existent row in the parent table \cite{referential_integrity_y42}. Such a scenario, known as a "dangling reference\footnote{The "dangling pointer" is a problem typically addressed in the context of low-level programming, where a pointer refers to a memory area that is no longer valid because it has been freed or because the pointer is used outside the context of the variable's existence to which it refers \cite{apogeo-fondamenti-programmazione}, but the same dynamic can also be applied in the context of databases, where the "pointers" are represented by foreign keys.}", can generate anomalies and inconsistencies in the system, making the data unreliable and debugging extremely complex \cite{referential_integrity_important_databases}.

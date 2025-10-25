@@ -144,22 +144,39 @@ In this way, not only is the dependency on the agent, and all the associated log
 
 The cost of these improvements is represented by the additional logic needed to manage communications with Provision Prime, specifically the retrieval of the target machine. To implement these retrieval logics, which are highly custom for each type of target machine (e.g., Domain Controller, Exchange Server, internal workers, etc.), the \textit{Strategy} design pattern \cite{strategy_pattern} was leveraged. This pattern allows each retrieval logic to be encapsulated in a separate class, making the code more modular, extensible, and maintainable (a topic that will be explored in depth in chapter X.X).
 
+As for the script execution logs, which are needed to monitor the status of Service Requests and detect execution errors, an integration with an AWS S3 bucket, a scalable and durable storage service, will be implemented. This way, every time a script is executed on a remote machine, the logs will be uploaded by the DMI (via the Ansible playbook) to the S3 bucket, ensuring centralized and secure access to execution logs regardless of the machine on which they were generated.
+
 
 \subsection{Code and Data Management Issues}
 The lack of versioning and modern debugging capabilities outlined in the existing system is fundamentally addressed by centralizing all disparate logic (previously scattered across Stored Procedures and SSIS jobs) into a unified, version-controlled software project integrated with a robust CI/CD pipeline. By adopting Git as the standard Version Control System (VCS), all business logic is now treated as application code. This immediately solves the versioning problem: every change is tracked, attributed to an author, and can be reverted, enabling seamless collaboration and a full audit trail. Moreover, moving the core business logic out of the database and into a dedicated backend service (Django REST Framework) written in a modern language (Python) drastically improves debuggability, allowing developers to use powerful, standardized IDE tools to set breakpoints, inspect variables, and step through code without impacting the production database.
 
 This strategy is completed by integrating several specific CI/CD pipelines (a topic that will be explored in depth in chapter X.X) tailored for each environment branch (\texttt{feature}, \texttt{devel}, \texttt{quality}, \texttt{main}). This setup automates the deployment process: code changes are first pushed to a dedicated task branch, reviewed, and then merged into the \texttt{devel} environment. Upon passing, the code is merged to the \texttt{quality} environment, and finally to \texttt{main} for production release. This process ensures that no logic is directly modified in a production environment, eliminating the single-point-of-failure inherent in direct database and server access. Furthermore, replacing the inaccessible, unversioned, and tightly coupled SSIS Jobs with modern, containerized async tasks (managed as code within the Git repository) breaks the strong infrastructure coupling, enhancing accessibility, facilitating collaboration, and making maintenance and debugging a safe, environment-specific activity.
 
-
-
 \subsection{Database Schema and Data Integrity Issues}
+The issues related to database design and data management were addressed through a series of interventions aimed at improving data integrity, consistency, and maintainability. These interventions include a complete revision of the database schema to eliminate redundancies and inconsistencies, the implementation of stricter integrity constraints, and the adoption of clear and consistent naming conventions for tables and fields.
+
+The system transitioned from using Microsoft SQL Server as the Database Management System (DBMS) to PostgreSQL, an open-source DBMS known for its robustness, scalability, and compliance with SQL standards. PostgreSQL offers advanced features such as support for complex data types, full ACID transactions, and an extensibility system that allows new functionalities to be added via extensions \cite{postgres_implementation}. This choice not only improves the system's performance and reliability but also facilitates data management and the implementation of database design best practices.
 
 \subsubsection{Lack of Data Integrity and Consistency}
+To resolve data integrity and consistency issues, stricter referential integrity constraints were implemented using well-defined primary and foreign keys, also specifying behaviors in case of deletion (\texttt{ON DELETE} \texttt{CASCADE} / \texttt{SET\_NULL}, etc\dots).
+
+Specifically, for the deletion of "core" entities (such as customers, actions, or fields), the \texttt{CASCADE} behavior was chosen for "child" entities, which are consequently deleted.
+
+For secondary entities and/or those that can be null (such as ticket categorization information, action categories and groups, order information associated with tickets, etc\dots), the \texttt{SET\_NULL} behavior was chosen to preserve the history of operations and associated data, preventing the loss of more important information.
+
+These constraints ensure that relationships between tables are correctly maintained, preventing the creation of orphaned or inconsistent data.
 
 \subsubsection{Data Redundancy}
+New relationships were created to maximize data reuse and reduce redundancy, while ensuring referential integrity through the use of well-defined primary and foreign keys.
+
+These new entities primarily model concepts that were previously duplicated across multiple tables, such as cost centers (CDC, \textit{"centro di costo"}), service codes, and ticket classification and category. This significantly reduced the amount of redundant data, improving storage efficiency and database maintainability.
 
 \subsubsection{Unclear and Inconsistent Naming Conventions}
+Now, all tables and their attributes follow standardized naming conventions (\textit{snake\_case}), improving the readability and maintainability of the database schema.
 
-
+For "core" relationship names, the plural form was chosen (e.g., \texttt{actions}, \texttt{service\_requests}, \texttt{customers}, etc\dots), while for "child" relationships, the singular name of the "parent" relationship followed by the specific name in the plural was chosen (e.g., \texttt{action\_fields}, \texttt{customer\_actions}, etc\dots).
 
 \subsection{Maintenance and Operational Challenges}
+With the new improvements introduced in this chapter concerning architecture, technology, the completely redesigned catalog and configuration management, and the new execution flow, many of the previously encountered maintenance and operational problems have been resolved. The standardization of development and deployment processes, the adoption of DevOps practices, and the implementation of a more modern and scalable infrastructure have led to a significant reduction in downtime, while improving the system's overall reliability. Furthermore, the adoption of advanced monitoring and logging tools allows for rapid identification and resolution of any issues, ensuring smooth and continuous system operation.
+
+These improvements not only facilitate daily operations but also long-term planning, enabling the system to adapt easily to future needs and challenges.
