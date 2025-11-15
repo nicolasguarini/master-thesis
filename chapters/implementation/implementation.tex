@@ -104,6 +104,273 @@ Gli stage \texttt{deploy:argo-tags} e \texttt{deploy:argo-tags-quality} gestisco
 Lo stage \texttt{notify:new-relic} si occupa di registrare automaticamente le nuove release dell'applicazione sulla piattaforma di Application Performance Monitoring \textit{New Relic}, creando un marker di deployment che facilita la correlazione tra versioni del software e metriche di performance. Il job viene attivato per qualsiasi tag che rispetti il formato Semantic Versioning e utilizza l'API GraphQL di New Relic per identificare l'applicazione corretta tramite il suo GUID, distinguendo automaticamente tra l'istanza di produzione e quella di quality in base alla presenza o meno di suffissi pre-release nel tag. Una volta identificata l'entità monitorata, lo stage crea un evento di change tracking che registra la versione deployata, consentendo agli operatori e ai team di development di visualizzare nei dashboard di New Relic quando sono avvenuti i deployment e di correlare eventuali anomalie nelle performance o negli errori con specifiche versioni del software. Questo meccanismo di notifica automatica elimina la necessità di registrazione manuale dei deployment e fornisce una visibilità completa sul ciclo di vita dell'applicazione, supportando attività di troubleshooting, analisi di regressioni e valutazione dell'impatto delle release sulla stabilità del sistema.
 
 \section{Implementation of the Deployment Architecture on Kubernetes}
+L'architettura di deployment di SRM su Kubernetes è progettata per garantire scalabilità, resilienza e separazione delle responsabilità attraverso un'organizzazione basata su deployment distinti, ciascuno ottimizzato per funzioni specifiche del sistema.
+
+La struttura ad alto livello dei file di deploy è la seguente:
+
+\begin{minted}[linenos,tabsize=2,breaklines]{yaml}
+namespace: servicerequestmanager
+serviceAccount:
+  create: TRUE
+deployments:
+  - name: static
+    ...
+  - name: backend
+    ...
+jobs:
+  - name: sync-srp-catalog
+    ...
+  - name: sync-srp-sr-history
+    ...
+  - name: import-directory-data
+    ...
+\end{minted}
+
+Il sistema è isolato all'interno del namespace dedicato \texttt{servicerequestmanager}, garantendo la separazione logica delle risorse e facilitando la gestione dei permessi e delle network policies. La configurazione prevede la creazione di un service account dedicato, che permette ai pod di interagire con le API Kubernetes secondo il principio del \textit{least privilege}, limitando i permessi solo a quelli strettamente necessari per il funzionamento del sistema.
+
+\subsection{Static Content Deployment}
+Il deployment \texttt{static} gestisce la distribuzione di contenuti statici attraverso un web server Nginx containerizzato, configurato per servire asset frontend quali JavaScript bundles, CSS, immagini e altri file statici. Questo deployment implementa una strategia di caching ottimizzata che riduce il carico sul backend e migliora significativamente i tempi di risposta per gli utenti finali.
+
+\begin{minted}[linenos,tabsize=2,breaklines]{yaml}
+  - name: static
+    services:
+      - name: static
+        port: 80
+    ingresses:
+      - name: static
+        public: False
+        type: http
+        host: servicerequestmanager.k8s.elmec.ad
+        path: /static
+        port: 80
+    containers:
+      - name: nginx
+        image: docker.elmec.com/.../ssl:production-latest
+        port: 80
+      - name: nginx-mtr-exp
+        image: docker.elmec.com/.../nginx-prometheus-exporter:0.8.0
+        port: 9113
+        args:
+          - "-nginx.scrape-uri"
+          - "http://127.0.0.1:8080/nginx_status"
+    replicaCount: 1
+    monitoring:
+      - name: nginx-metrics
+        port: 9113
+    imagePullSecrets:
+      - name: docker-registry-secret
+\end{minted}
+
+\subsubsection{Container Configuration}
+Il deployment si compone di due container in esecuzione sullo stesso pod.
+Il container principale \texttt{nginx} utilizza l'immagine \texttt{ssl:production-latest}, che include le configurazioni SSL/TLS e i certificati necessari per le comunicazioni sicure. Il server è configurato per ascoltare sulla porta 80 all'interno del cluster, mentre l'accesso esterno avviene attraverso il sistema di ingress che gestisce la terminazione SSL.
+Parallelamente, il container \texttt{nginx-mtr-exp} esegue il \textit{Nginx Prometheus Exporter}, uno strumento specializzato che espone metriche operative del web server in formato compatibile con Prometheus. Questo sidecar container si connette all'endpoint \texttt{nginx\_status} esposto da Nginx sulla porta 8080 e traduce le statistiche native in metriche Prometheus accessibili sulla porta 9113, permettendo al sistema di monitoraggio di raccogliere dati su throughput, latenza, errori e utilizzo delle connessioni.
+
+\subsubsection{Service and Ingress Configuration}
+Il servizio Kubernetes \texttt{static} espone il deployment sulla porta 80, fornendo un punto di accesso stabile indipendente dal lifecycle dei pod sottostanti. L'ingress associato è configurato come interno (non pubblico) e instrada le richieste provenienti dall'host \texttt{servicerequestmanager.k8s.elmec.ad} con path \texttt{/static} verso il servizio, implementando un virtual hosting che permette di segregare il traffico statico da quello API.
+
+\subsubsection{Monitoring Integration}
+Il deployment integra nativamente il monitoraggio attraverso la definizione di un ServiceMonitor che istruisce Prometheus a scrapare le metriche esposte sulla porta 9113. Questa configurazione permette la raccolta automatica di telemetria operativa senza necessità di configurazioni manuali aggiuntive, garantendo visibilità continua sullo stato del servizio di contenuti statici.
+
+\subsection{Backend Application Deployment}
+
+Il deployment \texttt{backend} costituisce il core dell'architettura e gestisce l'intera logica applicativa attraverso un'organizzazione multi-container che separa le responsabilità tra API server e worker asincroni.
+
+\begin{minted}[linenos,tabsize=2,breaklines]{yaml}
+- name: backend
+  vault:
+    name: 'secrets'
+  services:
+    - name: api
+      port: 5000
+      mirror: TRUE
+    - name: api-ext
+      port: 5000
+      mirror: True
+  ingresses:
+    - name: api
+      public: False
+      type: http
+      host: servicerequestmanager.k8s.elmec.ad
+      path: /
+      port: 5000
+      middlewares:
+        - name: cors
+          spec:
+            headers:
+              accessControlAllowMethods:
+                - "GET"
+                - "OPTIONS"
+                - "POST"
+                - "PUT"
+                - "DELETE"
+                - "PATCH"
+              accessControlAllowOriginList:
+                - "*"
+              accessControlMaxAge: 100
+              accessControlAllowHeaders: ["*"]
+    - name: api-ext
+      public: True
+      type: http
+      host: api.elmec.com
+      path: /servicerequestmanager/
+      port: 5000
+      middlewares:
+        - name: strip
+          spec:
+            replacePathRegex:
+              regex: ^/servicerequestmanager/(.*)
+              replacement: /$1
+        - name: cors
+          spec:
+            headers:
+              accessControlAllowMethods:
+                - "GET"
+                - "OPTIONS"
+                - "POST"
+                - "PUT"
+                - "DELETE"
+                - "PATCH"
+              accessControlAllowOriginList:
+                - "*"
+              accessControlMaxAge: 100
+              accessControlAllowHeaders: [ "*" ]
+  containers:
+    - name: api
+      ...
+    - name: celery
+      ...
+  replicaCount: 2
+  monitoring:
+    labels:
+      port: "5000"
+      host: "localhost"
+    subscriptions:
+      - django
+    type: PodAndService
+    podmonitors:
+      - name: django-hc
+        port: api
+        path: /ht/
+        healthCheck: True
+  imagePullSecrets:
+    - name: docker-registry-secret
+\end{minted}
+
+\subsubsection{Vault Integration for Secrets Management}
+Il deployment è configurato per integrare HashiCorp Vault attraverso l'injection automatica di secrets nel filesystem del pod. Il Vault Agent injector monta dinamicamente i segreti (credenziali database, chiavi API, password) nel path \texttt{/vault/secrets/secrets}, rendendo disponibili le informazioni sensibili ai container senza esporle nelle variabili d'ambiente o nei ConfigMap. Questo approccio implementa il pattern di secrets management secondo le best practice di sicurezza Kubernetes, garantendo rotazione automatica delle credenziali e audit trail completo degli accessi.
+
+\subsubsection{API Container Configuration}
+Il container \texttt{api} esegue l'applicazione Django attraverso il server Gunicorn, configurato per gestire richieste HTTP sulla porta 5000. La configurazione delle risorse implementa un modello di \textit{Quality of Service Burstable}, con request di 400m CPU e 1000Mi di memoria e limit rispettivamente a 800m CPU e 1200Mi di memoria. Questa configurazione permette al container di scalare temporaneamente oltre le risorse richieste durante picchi di carico, pur garantendo un baseline minimo garantito dallo scheduler Kubernetes.
+
+\begin{minted}[linenos,tabsize=2,breaklines,breakanywhere]{yaml}
+containers:
+  - name: api
+    image: "docker.elmec.com/innovation/servicerequestmanager:PROJECT_VERSION"
+    port: 5000
+    cpuRequest: 400m
+    cpuLimit: 800m
+    memoryRequest: 1000Mi
+    memoryLimit: 1200Mi
+    envs:
+      - name: ENVIRONMENT
+        value: "PRODUCTION"
+      - name: DJANGO_DB_HOST
+        value: 'servicerequestmanager-db-production-pooler-rw.autom-servicerequestmanager-production.svc.cluster.local'
+      - name: DJANGO_DB_PORT
+        value: '5432'
+      ...
+\end{minted}
+
+Le variabili d'ambiente definiscono la configurazione operativa dell'applicazione, includendo parametri di connessione al database PostgreSQL attraverso il pooler PgBouncer, configurazione del caching distribuito tramite Memcached, integrazione con Redis per la gestione delle code Celery, e endpoint di servizi esterni per autenticazione OIDC e integrazioni con altri sistemi aziendali.
+La configurazione include inoltre parametri specifici per l'integrazione con il sistema legacy SRP, definendo connessioni al database SQL Server (\texttt{elmec-cmi-mssql.elmec.ad/DbSRP}) e date di sincronizzazione per l'importazione dello storico delle service request. Il sistema di storage S3-compatible è configurato attraverso l'endpoint Ceph RGW (\texttt{rgw.elmec.com}) per la gestione dei log di esecuzione e import / export delle anagrafiche dei clienti.
+
+\subsubsection{Celery Worker Container}
+
+\begin{minted}[linenos,tabsize=2,breaklines,breakanywhere]{yaml}
+- name: celery
+  image: "docker.elmec.com/innovation/servicerequestmanager:PROJECT_VERSION"
+  memoryLimit: 1200Mi
+  memoryRequest: 1000Mi
+  cpuRequest: 400m
+  cpuLimit: 800m
+  command: "/bin/sh"
+  args:
+    - -c
+    - . /vault/secrets/secrets;cd servicerequestmanager; celery -A servicerequestmanager worker --loglevel=info --pool threads
+  envs:
+    - name: CELERY_QUEUE
+      value: "servicerequestmanager_production"
+    - name: REDIS_HOST
+      value: "autom-servicerequestmanager-redis.autom-servicerequestmanager-production.svc.cluster.local"
+    ...
+\end{minted}
+Il container \texttt{celery} esegue worker Celery dedicati all'elaborazione asincrona di task in background legati al flusso di esecuzione delle service requests, utilizzando un thread pool per gestire operazioni concorrenti senza blocking. Il comando di avvio personalizzato inizializza l'ambiente caricando i secrets da Vault prima di avviare il worker con logging configurato a livello INFO.
+I worker sono configurati per consumare dalla coda dedicata \texttt{servicerequestmanag\_production} su Redis, garantendo isolamento rispetto ad altri sistemi che condividono la stessa infrastruttura di messaging. L'allocation di risorse è identica a quella del container API, riflettendo requisiti computazionali simili.
+
+\subsubsection{Service Exposure and Load Balancing}
+Il deployment espone due servizi distinti per gestire traffico interno ed esterno.
+
+Il servizio \texttt{api} opera internamente al cluster sulla porta \texttt{5000}, configurato con mirror mode attivo per permettere il traffic mirroring a scopi di testing o debugging. L'ingress associato è configurato come interno e instrada richieste provenienti dall'host \texttt{servicerequestmanager.k8s.elmec.ad} verso il backend, implementando middleware CORS che permette richieste cross-origin con metodi HTTP completi (\texttt{GET}, \texttt{POST}, \texttt{PUT}, \texttt{DELETE}, \texttt{PATCH}) e headers arbitrari.
+
+Il servizio \texttt{api-ext} fornisce invece accesso pubblico attraverso l'host \texttt{api.elmec.com} con path prefix \texttt{/servicerequestmanager/}. La configurazione dell'ingress include un middleware di path rewriting che rimuove il prefix prima di inoltrare le richieste al backend, permettendo all'applicazione di operare con routing paths semplificati. Anche questo ingress implementa policy CORS permissive per supportare integrazioni da applicazioni web di terze parti.
+
+\subsubsection{Availability and Scaling}
+Il deployment è configurato con \texttt{replicaCount: 2}, garantendo ridondanza e distribuzione del carico su almeno due pod distribuiti su nodi differenti del cluster. Questa configurazione implementa alta disponibilità di base, permettendo rolling updates senza downtime e tolleranza ai failure di singoli pod o nodi. Lo scheduler Kubernetes distribuisce automaticamente i replica su nodi differenti quando possibile, massimizzando la resilienza.
+
+\subsubsection{Health Checking and Monitoring}
+Il sistema di monitoraggio è configurato attraverso PodMonitor che combina metriche applicative e health check. Il PodMonitor \texttt{django-hc} esegue check periodici sull'endpoint \texttt{/ht/} del servizio API, verificando che l'applicazione sia responsiva e correttamente configurata. 
+
+Il deployment è inoltre taggato con subscription django che attiva dashboard e alert predefiniti per applicazioni Django, fornendo visibilità immediata su metriche quali request rate, latency distribution, error rate e database connection pool utilization.
+
+\subsection{Scheduled Jobs for Data Synchronization}
+L'architettura include CronJob Kubernetes per l'esecuzione di task ricorrenti che mantengono allineati i dati tra ServiceRequestManager e il sistema legacy SRP, in modo che i due sistemi, almeno inizialmente, possano co-esistere e restare allineati durante questo periodo.
+
+\begin{minted}[linenos,tabsize=2,breaklines,breakanywhere]{yaml}
+jobs:
+  - name: sync-srp-catalog
+    vault:
+      name: 'secrets'
+    schedule: "0 1 * * *"
+    image: docker.elmec.com/innovation/servicerequestmanager:PROJECT_VERSION
+    memoryLimit: 700Mi
+    memoryRequest: 400Mi
+    cpuRequest: 400m
+    cpuLimit: 800m
+    command: "manage.sh"
+    args:
+      - "sync_srp_catalog"
+    envs:
+      ...
+    imagePullSecrets:
+      - name: docker-registry-secret
+  - name: sync-srp-sr-history
+    vault:
+      name: 'secrets'
+    schedule: "0 2 * * *"
+    image: docker.elmec.com/innovation/servicerequestmanager:PROJECT_VERSION
+    memoryLimit: 700Mi
+    memoryRequest: 400Mi
+    cpuRequest: 400m
+    cpuLimit: 600m
+    command: "manage.sh"
+    args:
+      - "sync_srp_service_requests"
+    envs: 
+      ...
+    imagePullSecrets:
+      - name: docker-registry-secret
+\end{minted}
+
+\subsubsection{SRP Catalog Synchronization}
+Il job \texttt{sync-srp-catalog} è schedulato per l'esecuzione quotidiana all'1:00 AM attraverso la cron expression \texttt{0 1 * * *}\footnote{La sintassi \textit{cron} è un formato compatto utilizzato per programmare l'esecuzione periodica di processi o job nei sistemi Unix-like \cite{cron}. Si compone di cinque campi numerici separati da spazi (minuto, ora, giorno del mese, mese, giorno della settimana) che indicano quando un comando deve essere eseguito. Ogni campo può contenere valori singoli, intervalli (es. 1-5), liste (es. 1,3,7) o caratteri speciali come \texttt{*}, che significa “qualsiasi valore”, e \texttt{/}, che indica una frequenza (ad esempio \texttt{*/5} per ogni cinque unità di tempo) \cite{cron}. Una stringa come \texttt{0 2 * * *} indica quindi l'esecuzione di un job tutti i giorni alle 02:00. Questa sintassi, pur essendo minimale, permette di descrivere in modo preciso e flessibile praticamente qualsiasi esigenza di schedulazione ricorrente.}. Questo job esegue il management command Django \texttt{sync\_srp\_catalog} che interroga il database di SRP per importare le configurazioni del catalogo. L'esecuzione è configurata con risorse più contenute rispetto ai deployment permanenti (400Mi-700Mi memoria, 400m-800m CPU), riflettendo la natura batch del workload che può tollerare latenze maggiori.
+
+\subsubsection{Service Request History Synchronization}
+Il job \texttt{sync-srp-sr-history} è schedulato per l'esecuzione alle 2:00 AM, un'ora dopo la sincronizzazione del catalogo per garantire che le configurazioni aggiornate siano già disponibili. Questo job esegue il comando \texttt{sync\_srp\_service\_requests} che importa lo storico delle service request create nel sistema legacy a partire dalla data definita in \texttt{SRP\_SR\_SYNC\_START\_DATE}, mantenendo allineata la vista unificata delle richieste attraverso i due sistemi durante il periodo di transizione.
+
+Entrambi i CronJob condividono la medesima configurazione di environment variables e secrets injection del deployment backend, garantendo consistenza nell'accesso a database e servizi esterni. 
+
+L'execution model basato su Job Kubernetes garantisce retry automatici in caso di failure e retention dello storico delle esecuzioni per debugging e auditing.
 
 \section{Backend Service Implementation}
 
