@@ -326,9 +326,11 @@ The monitoring system is configured through PodMonitor that combines application
 
 The deployment is also tagged with django subscription that activates predefined dashboards and alerts for Django applications, providing immediate visibility on metrics such as request rate, latency distribution, error rate, and database connection pool utilization.
 
-\subsection{Scheduled Jobs for Data Synchronization}
-The architecture includes Kubernetes CronJobs for executing recurring tasks that keep data aligned between ServiceRequestManager and the legacy SRP system, so that the two systems can, at least initially, coexist and remain aligned during this period.
+\subsection{Scheduled Jobs}
+The architecture includes Kubernetes CronJobs for triggering Master Data export from clients' Domain Controllers and Exchange Servers, and for keeping data aligned between ServiceRequestManager and the legacy SRP system, so that the two systems can, at least initially, coexist and remain aligned during this period.
+The CronJobs share the same environment variables configuration and secrets injection as the backend deployment, ensuring consistency in access to databases and external services.
 
+Here is an example of the CronJob definition configuration:
 \begin{minted}[linenos,tabsize=2,breaklines,breakanywhere]{yaml}
 jobs:
   - name: sync-srp-catalog
@@ -347,22 +349,6 @@ jobs:
       ...
     imagePullSecrets:
       - name: docker-registry-secret
-  - name: sync-srp-sr-history
-    vault:
-      name: 'secrets'
-    schedule: "0 2 * * *"
-    image: docker.elmec.com/innovation/servicerequestmanager:PROJECT_VERSION
-    memoryLimit: 700Mi
-    memoryRequest: 400Mi
-    cpuRequest: 400m
-    cpuLimit: 600m
-    command: "manage.sh"
-    args:
-      - "sync_srp_service_requests"
-    envs: 
-      ...
-    imagePullSecrets:
-      - name: docker-registry-secret
 \end{minted}
 
 \subsubsection{SRP Catalog Synchronization}
@@ -373,14 +359,17 @@ The \texttt{sync-srp-catalog} job is scheduled for daily execution at 1:00 AM th
 
 The \texttt{sync-srp-sr-history} job is scheduled for execution at 2:00 AM, one hour after catalog synchronization to ensure that updated configurations are already available. This job executes the \texttt{sync\_srp\_service\_requests} command which imports the history of service requests created in the legacy system starting from the date defined in \texttt{SRP\_SR\_SYNC\_START\_DATE}, keeping the unified view of requests aligned across the two systems during the transition period.
 
-Both CronJobs share the same environment variables configuration and secrets injection as the backend deployment, ensuring consistency in access to databases and external services.
+\subsubsection{Master Data Import}
+The \texttt{export-master-ata} job is responsible for periodically triggering the export of customers' master data from their Domain Controllers and Exchange Servers via an Ansible Playbook. Scheduled to run every weeb day at 02:00 AM, this job executes the \texttt{import\_master\_data} management command.
 
 This execution model based on Kubernetes Jobs ensures automatic retries in case of failure and retention of execution history for debugging and auditing.
 
 \section{Backend Service Implementation}
+Il servizio backend è sicuramente il componente più critico dell'architettura di SRM, responsabile della gestione della logica applicativa, dell'elaborazione delle richieste e dell'integrazione con sistemi esterni. L'implementazione è stata progettata per garantire scalabilità, resilienza e facilità di manutenzione, e un alto livello di personalizzazione per adattarsi alle esigenze specifiche dei clienti.
 
 \subsection{Technological Overview}
-Panoramica breve (1-2 paragrafi per tecnologia) che introduce:
+Verrà fornita ora una panoramica delle principali tecnologie utilizzate nell'implementazione del backend di SRM.
+
 \begin{itemize}
   \item Cosa è la tecnologia
   \item Perché è stata scelta per il progetto specifico
