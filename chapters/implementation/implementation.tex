@@ -426,6 +426,40 @@ Within the SRM architecture, Django serves as the central orchestration layer th
 This central architectural role makes Django the foundation upon which the entire ServiceRequestManager backend is built, coordinating the complex interactions required to deliver a scalable, maintainable, and feature-rich service request management platform.
 
 \subsubsection{Asynchronous Task Processing}
+The ServiceRequestManager architecture implements asynchronous task processing through \textit{Celery}, a distributed task queue system designed for handling time-consuming operations outside the request-response cycle of web applications \cite{celery}. 
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\textwidth]{images/implementation/celery-django-architecture.png}
+    \caption{Celery Architecture (source: \cite{celery_diagram})}
+    \label{fig:celery_architecture}
+\end{figure}
+
+Celery, as shown in Figure \ref{fig:celery_architecture}, operates on a producer-consumer model where the Django application acts as a producer, publishing tasks to a message broker, while dedicated worker processes consume and execute these tasks asynchronously. This architectural pattern prevents blocking operations from impacting API response times and enables horizontal scalability of background processing capacity independently from the web server layer \cite{celery}\cite{celery_diagram}.
+
+\paragraph{Celery Architecture and Components}
+
+Celery's architecture consists of several key components that work together to provide reliable asynchronous execution. The \textit{task} represents a unit of work defined as a Python function decorated with Celery's task decorator (\texttt{@shared\_task}), which can be invoked asynchronously from anywhere in the Django application. When a task is called using the \texttt{.delay()} or \texttt{.apply\_async()} methods, Celery serializes the function name and arguments, then publishes this message to the broker \cite{celery}.
+
+The \textit{broker} acts as a message transport layer, receiving task messages from producers and delivering them to available workers. For the SRM system, \textit{Redis} was selected as the message broker due to its \textit{in-memory} architecture that provides low-latency message delivery, simple deployment and operational management, and native support for persistence through snapshots and append-only file (AOF) mechanisms. While \textit{RabbitMQ} represents a robust alternative with more sophisticated routing capabilities, guaranteed message delivery through acknowledgments, and better performance under high-throughput scenarios with complex routing requirements, Redis was deemed more appropriate for SRM's use case. The system's task patterns are relatively straightforward, consisting primarily of service request execution orchestration and periodic synchronization jobs, without requiring advanced routing or particular patterns.
+
+The \textit{worker} processes continuously monitor the broker for new tasks, deserialize incoming messages, and execute the corresponding functions. As shown in the deployment configuration, Celery workers in the SRM system are configured with a thread pool (\texttt{--pool threads}) to efficiently handle I/O-bound operations such as API calls to external systems, database queries, and remote script execution coordination. Workers can be scaled horizontally by increasing the number of pods in the Kubernetes deployment, providing elastic processing capacity that adapts to workload demands.
+
+Celery also includes a \textit{result backend} for storing task execution outcomes, enabling the application to query task status and retrieve return values. This proves essential for long-running service request executions where users need to monitor progress and retrieve final results asynchronously.
+
+\paragraph{Role in SRM Architecture}
+
+Within the ServiceRequestManager system, Celery fulfills several critical functions that enable the asynchronous execution model required by the service request workflow:
+
+\textbf{Service Request Execution Orchestration}: When a service request is submitted through the API, Django immediately returns a response acknowledging receipt while delegating the actual execution to a Celery task. This task coordinates the multi-phase execution process described in Figure X.X, rendering execution scripts with related parameters, invoking Ansible playbooks,  monitoring execution progress, collecting logs, and updating the service request status (and related ticket) in the database. This asynchronous pattern ensures that API endpoints remain responsive even when service requests take minutes or hours to complete.
+
+\textbf{Scheduled Synchronization Operations}: The periodic jobs defined in the Kubernetes CronJobs (\texttt{sync-srp-catalog}, \texttt{sync-srp-sr-history}, \texttt{export-master-data}) are implemented as Celery tasks triggered by scheduled task execution. This approach provides consistent error handling, retry logic, and logging across both user-initiated and scheduled operations, leveraging Celery's built-in support for task retries with exponential backoff and comprehensive task lifecycle monitoring.
+
+\textbf{Background Data Processing}: Operations such as bulk catalog imports, report generation, and data export to external systems are executed asynchronously through Celery tasks to avoid blocking interactive user operations. This maintains a responsive user experience while enabling resource-intensive batch processing.
+
+\textbf{Distributed Processing and Fault Tolerance}: Celery's distributed architecture ensures that task execution continues even if individual worker pods fail or are restarted during Kubernetes rolling updates. Tasks in the queue are automatically redistributed to healthy workers, and failed tasks can be configured to retry automatically, providing resilience against transient failures in dependent systems.
+
+The integration of Celery with Django and Redis creates a robust asynchronous processing pipeline that is essential for handling the complex, long-running operations inherent in automated service request management while maintaining the responsiveness and reliability expected of enterprise systems.
 
 \subsubsection{Data Persistence and Caching}
 \paragraph{Remote Execution}
