@@ -263,7 +263,7 @@ The \texttt{backend} deployment constitutes the core of the architecture and man
 \subsubsection{Vault Integration for Secrets Management}
 The deployment is configured to integrate \textit{HashiCorp Vault}\footnote{HashiCorp Vault is a system for securely managing secrets such as passwords, tokens, certificates, and API keys. It's used to centralize, encrypt, and dynamically deliver these secrets to pods, avoiding storing them in plaintext in YAML manifests or Kubernetes Secrets. It also enables secret rotation, temporary access with fine-grained control, and automatic secret injection into containers via sidecar or the CSI driver.\cite{vault}} through automatic injection of secrets into the pod filesystem. The \textit{Vault Agent injector} dynamically mounts secrets (database credentials, API keys, passwords) in the path \texttt{/vault/secrets/secrets}, making sensitive information available to containers without exposing them in environment variables or ConfigMaps. This approach implements the secrets management pattern according to Kubernetes security best practices, ensuring automatic credential rotation and complete audit trail of accesses.
 
-\subsubsection{API Container Configuration}
+\subsubsection{API Container Configuration} \label{sec:api-container-config}
 The \texttt{api} container runs the Django application through the Gunicorn server, configured to handle HTTP requests on port 5000. The resource configuration implements a \textit{Burstable Quality of Service}\footnote{Burstable Quality of Service (QoS) is a resource classification applied to pods whose requested CPU/memory is lower than their limits. This means the pod is guaranteed at least its requested resources, but it's also allowed to “burst” up to its limits when the node has spare capacity. Burstable sits between Guaranteed (highest priority) and BestEffort (lowest priority) in terms of scheduling and eviction priority \cite{burstable_qos}.} model, with requests of 400m CPU and 1000Mi memory and limits of 800m CPU and 1200Mi memory respectively. This configuration allows the container to temporarily scale beyond requested resources during load peaks, while ensuring a minimum baseline guaranteed by the Kubernetes scheduler.
 
 \begin{minted}[linenos,tabsize=2,breaklines,breakanywhere]{yaml}
@@ -370,12 +370,6 @@ Il servizio backend è sicuramente il componente più critico dell'architettura 
 \subsection{Technological Overview}
 Verrà fornita ora una panoramica delle principali tecnologie utilizzate nell'implementazione del backend di SRM.
 
-\begin{itemize}
-  \item Cosa è la tecnologia
-  \item Perché è stata scelta per il progetto specifico
-  \item Ruolo generale che ha nell'architettura
-\end{itemize}
-
 \subsubsection{Core Framework and API Layer}
 
 The backend service is built upon \textit{Django}, a high-level Python web framework that follows the Model-View-Template (MVT) architectural pattern, a variant of the traditional Model-View-Controller (MVC) pattern adapted to web development. In Django's MVT architecture, the \textit{Model} layer handles data structure and database interactions through an Object-Relational Mapping (ORM) system, the \textit{View} layer contains the business logic that processes requests and returns responses, and the \textit{Template} layer manages presentation logic. Django acts as the implicit controller, routing URLs to appropriate views and coordinating the overall request-response cycle \cite{django}.
@@ -411,17 +405,14 @@ While Go would have provided performance advantages, particularly for high-throu
 
 Within the SRM architecture, Django serves as the central orchestration layer that coordinates all backend operations and system interactions. The framework's role encompasses several critical responsibilities:
 
-\subparagraph{API Gateway and Request Processing} Through Django REST Framework, the backend exposes a comprehensive RESTful API that serves as the primary interface for the frontend application and external integrations \cite{django_rest_framework}. DRF viewsets handle incoming HTTP requests, perform authentication and authorization checks, validate input data through serializers, and coordinate business logic execution. The framework's middleware stack implements cross-cutting concerns such as CORS handling, request logging, and exception management \cite{django_rest_framework}.
-
-\subparagraph{Business Logic Orchestration} Django views and service classes implement the core business logic for catalog management, service request lifecycle handling, and configuration validation. The framework coordinates interactions between different system components, such as triggering asynchronous task execution through Celery, managing database transactions, and interfacing with external systems through integration adapters.
-
-\subparagraph{Data Persistence and Model Management} Django's ORM manages the complete data model \cite{django}, including catalog hierarchies, field configurations, service request instances, and audit trails. The framework handles database schema migrations \cite{django}, ensuring consistent evolution of the data model across \texttt{development}, \texttt{quality}, and \texttt{production} environments.
-
-\subparagraph{Authentication and Authorization} Django's authentication system, extended with OIDC integration, manages user identity verification and session handling \cite{django}. The framework's permission system enforces role-based access control (RBAC) for API endpoints and data operations, ensuring that users can only access resources appropriate to their organizational roles.
-
-\subparagraph{Configuration Management and Multi-Tenancy} The three-level configuration system (Field, Action, Customer) is implemented through Django models and custom manager classes that handle inheritance and override logic. The framework manages the complexity of determining effective configurations by traversing the hierarchy and applying precedence rules, abstracting this complexity from both the frontend and external consumers.
-
-\subparagraph{Integration Hub} Django serves as the integration point for all external system interactions, including connections to the legacy SRP database for synchronization, LDAP servers for directory integration, S3-compatible storage for master data import / export, and message queue systems for asynchronous processing. The framework's modular architecture allows these integrations to be implemented as reusable components that can be tested and maintained independently.
+\begin{itemize}
+  \item \textbf{API Gateway and Request Processing}: Through Django REST Framework, the backend exposes a comprehensive RESTful API that serves as the primary interface for the frontend application and external integrations \cite{django_rest_framework}. DRF viewsets handle incoming HTTP requests, perform authentication and authorization checks, validate input data through serializers, and coordinate business logic execution. The framework's middleware stack implements cross-cutting concerns such as CORS handling, request logging, and exception management \cite{django_rest_framework};
+  \item \textbf{Business Logic Orchestration}: Django views and service classes implement the core business logic for catalog management, service request lifecycle handling, and configuration validation. The framework coordinates interactions between different system components, such as triggering asynchronous task execution through Celery, managing database transactions, and interfacing with external systems through integration adapters;
+  \item \textbf{Data Persistence and Model Management} Django's ORM manages the complete data model \cite{django}, including catalog hierarchies, field configurations, service request instances, and audit trails. The framework handles database schema migrations \cite{django}, ensuring consistent evolution of the data model across \texttt{development}, \texttt{quality}, and \texttt{production} environments;
+  \item \textbf{Authentication and Authorization} Django's authentication system, extended with OIDC integration, manages user identity verification and session handling \cite{django}. The framework's permission system enforces role-based access control (RBAC) for API endpoints and data operations, ensuring that users can only access resources appropriate to their organizational roles;
+  \item \textbf{Configuration Management and Multi-Tenancy} The three-level configuration system (Field, Action, Customer) is implemented through Django models and custom manager classes that handle inheritance and override logic. The framework manages the complexity of determining effective configurations by traversing the hierarchy and applying precedence rules, abstracting this complexity from both the frontend and external consumers;
+  \item \textbf{Integration Hub} Django serves as the integration point for all external system interactions, including connections to the legacy SRP database for synchronization, LDAP servers for directory integration, S3-compatible storage for master data import / export, and message queue systems for asynchronous processing. The framework's modular architecture allows these integrations to be implemented as reusable components that can be tested and maintained independently.
+\end{itemize}
 
 This central architectural role makes Django the foundation upon which the entire ServiceRequestManager backend is built, coordinating the complex interactions required to deliver a scalable, maintainable, and feature-rich service request management platform.
 
@@ -435,7 +426,7 @@ The ServiceRequestManager architecture implements asynchronous task processing t
     \label{fig:celery_architecture}
 \end{figure}
 
-Celery, as shown in Figure \ref{fig:celery_architecture}, operates on a producer-consumer model where the Django application acts as a producer, publishing tasks to a message broker, while dedicated worker processes consume and execute these tasks asynchronously. This architectural pattern prevents blocking operations from impacting API response times and enables horizontal scalability of background processing capacity independently from the web server layer \cite{celery}\cite{celery_diagram}.
+Celery, as shown in Figure \ref{fig:celery_architecture}, operates on a \textit{producer-consumer} model where the Django application acts as a producer, publishing tasks to a message broker, while dedicated worker processes consume and execute these tasks asynchronously. This architectural pattern prevents blocking operations from impacting API response times and enables horizontal scalability of background processing capacity independently from the web server layer \cite{celery}\cite{celery_diagram}.
 
 \paragraph{Celery Architecture and Components}
 
@@ -451,24 +442,44 @@ Celery also includes a \textit{result backend} for storing task execution outcom
 
 Within the ServiceRequestManager system, Celery fulfills several critical functions that enable the asynchronous execution model required by the service request workflow:
 
-\textbf{Service Request Execution Orchestration}: When a service request is submitted through the API, Django immediately returns a response acknowledging receipt while delegating the actual execution to a Celery task. This task coordinates the multi-phase execution process described in Figure X.X, rendering execution scripts with related parameters, invoking Ansible playbooks,  monitoring execution progress, collecting logs, and updating the service request status (and related ticket) in the database. This asynchronous pattern ensures that API endpoints remain responsive even when service requests take minutes or hours to complete.
+\begin{itemize}
+  \item \textbf{Service Request Execution Orchestration}: When a service request is submitted through the API, Django immediately returns a response acknowledging receipt while delegating the actual execution to a Celery task. This task coordinates the multi-phase execution process described in Figure X.X, rendering execution scripts with related parameters, invoking Ansible playbooks,  monitoring execution progress, collecting logs, and updating the service request status (and related ticket) in the database. This asynchronous pattern ensures that API endpoints remain responsive even when service requests take minutes or hours to complete.
+  \item \textbf{Scheduled Synchronization Operations}: The periodic jobs defined in the Kubernetes CronJobs (\texttt{sync-srp-catalog}, \texttt{sync-srp-sr-history}, \texttt{export-master-data}) are implemented as Celery tasks triggered by scheduled task execution. This approach provides consistent error handling, retry logic, and logging across both user-initiated and scheduled operations, leveraging Celery's built-in support for task retries with exponential backoff and comprehensive task lifecycle monitoring.
+  \item \textbf{Background Data Processing}: Operations such as bulk catalog imports, report generation, and data export to external systems are executed asynchronously through Celery tasks to avoid blocking interactive user operations. This maintains a responsive user experience while enabling resource-intensive batch processing.
+  \item \textbf{Distributed Processing and Fault Tolerance}: Celery's distributed architecture ensures that task execution continues even if individual worker pods fail or are restarted during Kubernetes rolling updates. Tasks in the queue are automatically redistributed to healthy workers, and failed tasks can be configured to retry automatically, providing resilience against transient failures in dependent systems.
+\end{itemize}
 
-\textbf{Scheduled Synchronization Operations}: The periodic jobs defined in the Kubernetes CronJobs (\texttt{sync-srp-catalog}, \texttt{sync-srp-sr-history}, \texttt{export-master-data}) are implemented as Celery tasks triggered by scheduled task execution. This approach provides consistent error handling, retry logic, and logging across both user-initiated and scheduled operations, leveraging Celery's built-in support for task retries with exponential backoff and comprehensive task lifecycle monitoring.
-
-\textbf{Background Data Processing}: Operations such as bulk catalog imports, report generation, and data export to external systems are executed asynchronously through Celery tasks to avoid blocking interactive user operations. This maintains a responsive user experience while enabling resource-intensive batch processing.
-
-\textbf{Distributed Processing and Fault Tolerance}: Celery's distributed architecture ensures that task execution continues even if individual worker pods fail or are restarted during Kubernetes rolling updates. Tasks in the queue are automatically redistributed to healthy workers, and failed tasks can be configured to retry automatically, providing resilience against transient failures in dependent systems.
-
-The integration of Celery with Django and Redis creates a robust asynchronous processing pipeline that is essential for handling the complex, long-running operations inherent in automated service request management while maintaining the responsiveness and reliability expected of enterprise systems.
+The integration of Celery with Django and Redis creates a robust asynchronous processing pipeline that is essential for handling the complex, medium/long-running operations inherent in automated service request management while maintaining the responsiveness and reliability expected of enterprise systems.
 
 \subsubsection{Data Persistence and Caching}
-\paragraph{Remote Execution}
+
+The SRM architecture implements a two-tier data access strategy combining \textit{PostgreSQL} for persistent storage and \textit{Memcached} for distributed caching, optimizing both data durability and system performance.
+
+\paragraph{PostgreSQL as Primary Data Store}
+
+PostgreSQL serves as the system's primary relational database, managing all persistent data including the complete catalog hierarchy (actions groups, categories, tyhpes, and global, client, and action configurations), field definitions and validation rules, customer master data registries (Domain Controllers and Exchange Servers), service request execution history with associated metadata and logs, user accounts and RBAC permissions, and synchronization state for legacy SRP system integration.
+
+The choice of PostgreSQL over alternative relational databases was driven by its advanced features particularly relevant to SRM requirements. PostgreSQL's robust transaction management with ACID guarantees ensures data consistency across complex operations involving multiple related entities, such as service request creation with cascading catalog validations and audit trail generation. The database's sophisticated query planner and support for partial indexes, expression indexes, and Common Table Expressions (CTEs) optimize performance for hierarchical catalog queries and configuration inheritance resolution.
+
+As shown in the deployment configuration in Figure \ref{fig:new-system-architecture} and in section \ref{sec:api-container-config}, the application connects to PostgreSQL through \textit{PgBouncer} (\texttt{servicerequestmanager-db-production-pooler-rw}), a \textit{connection pooler} that maintains a pool of persistent database connections, reducing connection overhead and enabling the application to handle connection spikes during peak loads without exhausting database connection limits. This architecture supports horizontal scaling of application pods while maintaining efficient database resource utilization.
+
+\paragraph{Memcached for External Service Caching}
+
+Memcached implements a distributed in-memory caching layer specifically targeting responses from external financial and administrative systems. These external services provide economic information required for service request processing, including active customer contracts with associated service levels and pricing, cost centers for departmental charge-back allocation, project codes for time and resource tracking, and general ledger account mappings for financial integration.
+
+External service calls typically exhibit high latency due to network round-trips and complex business logic execution in source systems, while the data they return has temporal stability (contracts and organizational structures change infrequently). Memcached addresses this performance bottleneck by caching service responses with configurable TTL (Time To Live) values (usually one or two days), reducing redundant external calls and significantly improving API response times for catalog configuration retrieval and service request execution workflows.
+
+Memcached's distributed architecture allows the cache to scale horizontally across multiple nodes, with consistent hashing ensuring efficient key distribution and lookup. The cache-aside pattern is implemented in Django service classes, which first query Memcached for cached data, invoke external services only on cache misses, and populate the cache with retrieved data for subsequent requests. This approach provides transparent caching without requiring modifications to external systems or introducing cache invalidation complexity for data managed outside SRM's control.
+
+The combination of PostgreSQL for durable, transactional storage and Memcached for ephemeral, high-performance caching creates a data access architecture that balances consistency requirements with performance optimization, supporting both the complex relational queries required by catalog management and the low-latency access patterns demanded by interactive user workflows.
+
+\subsubsection{Remote Execution}
 \subsubsection{Object Storage}
 
 \subsection{Catalog Management}
 
 \subsection{Message Queue System for Asynchronous Execution Flow}
-
+ 
 \subsection{Implementation of Customers' Master Data Import}
 
 \subsection{Logging and Monitoring}
