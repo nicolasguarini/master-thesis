@@ -519,7 +519,87 @@ Beyond master data, S3 storage also serves as the repository for service request
 
 The integration of S3-compatible object storage creates a scalable, resilient data pipeline that bridges the gap between distributed customer infrastructure and centralized SRM data management, enabling efficient master data synchronization while maintaining performance characteristics suitable for interactive user workflows.
 
+\subsection{General Project Structure}
+
+The ServiceRequestManager backend is implemented as a Python 3.13 project utilizing Django 5.2 and Django REST Framework 3.16, organized following Django's application-based architecture that promotes separation of concerns and modularity \cite{django}.
+
+\subsubsection{Django Application Organization}
+
+The project is decomposed into six specialized Django applications, each encapsulating a distinct domain of system functionality:
+
+\begin{itemize}
+\item \texttt{src/catalog/} manages all catalog-related logic, including Actions, Fields, customer configurations, validation regex patterns, API configurations, execution parameters, and script templates. This application implements the configuration hierarchy and provides the APIs for catalog CRUD operations.
+
+\item \texttt{src/integration/} handles integrations with external company systems such as HDA (ticketing), Economics (financial data), Atlantis (CMDB), and MySupport, as well as specialized integration endpoints for systems consuming SRM services outside the standard MyElmec/DeliveryHub workflow.
+
+\item \texttt{src/execution/} implements the complete service request execution lifecycle, including field validation, ticket creation, service request state management (creation, approval, suspension, execution, completion), and orchestration of Ansible playbook invocations.
+
+\item \texttt{src/monitoring/} provides health check implementations using Django Health Checks framework to verify catalog configuration consistency, service request state integrity, and synchronization status with external systems like HDA tickets.
+
+\item \texttt{src/directory\_data/} manages the master data import pipeline, handling the ingestion of directory information from S3 storage into the relational database and providing query interfaces for user, group, and organizational unit lookups.
+
+\item \texttt{src/common/} contains shared utilities, generic controllers, and reusable components leveraged across multiple applications, reducing code duplication and promoting consistency.
+\end{itemize}
+
+\subsubsection{Build and Deployment Artifacts}
+The \texttt{build/} directory contains the multi-layer Docker build configuration previously described, including \texttt{Dockerfile}, \texttt{Dockerfile\_ssl}, and \texttt{Dockerfile\_base}, along with production runtime scripts. The \texttt{run.sh} script orchestrates application startup by loading secrets from Vault, configuring SSL certificate trust, and launching the Gunicorn WSGI server with Eventlet worker class for async I/O support. The server is configured with 10 workers, 40-second timeout, and integration with New Relic APM for performance monitoring. The \texttt{manage.sh} script provides a wrapper for Django management commands, ensuring proper environment configuration and APM instrumentation during administrative operations and scheduled jobs.
+
+The \texttt{deploy/} directory contains the Kubernetes manifests (\texttt{devel.yaml}, \texttt{quality.yaml}, \texttt{production.yaml}) defining the complete deployment configuration for each environment, including deployments, services, ingresses, CronJobs, and resource specifications as detailed in the previous deployment architecture section.
+
+This organizational structure provides clear boundaries between functional domains, facilitates parallel development by different team members, and enables independent testing and evolution of each component while maintaining cohesive integration through well-defined interfaces.
+
 \subsection{Catalog Management}
+
+The catalog management subsystem represents the architectural core of ServiceRequestManager, implementing a sophisticated three-level configuration hierarchy that enables high flexibility in defining and customizing service request configurations. The catalog is composed of three principal entities that form the foundation of the system's automation capabilities: \textit{Customers}, representing organizations enabled to use SRM; \textit{Actions}, representing formal definitions of executable operations with complete configuration metadata; and \textit{Fields}, representing configurable input parameters that users populate when creating service requests.
+
+\subsubsection{Three-Level Configuration Architecture}
+
+The catalog implements a hierarchical override system organized across three distinct levels, each providing progressively more specific customization capabilities:
+
+\paragraph{Level 1: Global Definitions}
+The base level consists of global Action and Field definitions (\texttt{Action}, \texttt{Field}, \texttt{ActionField} models) that establish default configurations applicable across all customers. An Action at this level defines fundamental properties including execution scripts, approval requirements, target infrastructure (Domain Controller, Exchange Server, internal worker, ...), and associated fields. Fields define input validation rules, data types (text, select, file, checkbox, etc.), regex patterns, and dependency relationships with other fields. The \texttt{ActionField} association model links fields to actions while allowing action-specific overrides of field properties such as validation rules or display characteristics.
+
+\paragraph{Level 2: Customer-Level Action Customization}
+The \texttt{CustomerAction} model enables customer-specific modifications to action properties without duplicating the entire action definition. Through this mechanism, individual customers can override execution scripts to accommodate environment-specific requirements, modify approval workflows, alter execution target types, or adjust additional script parameter groups. This level maintains a clear separation between shared action logic and customer-specific variations, eliminating the configuration duplication that plagued the legacy SRP system.
+
+\paragraph{Level 3: Customer-Action-Specific Field Customization}
+The \texttt{CustomerActionField} model provides the finest granularity of customization, allowing modifications to individual field behavior for specific customer-action combinations. This enables four critical operations: modifying existing field properties (validation regex, mandatory status, dependencies) for a specific customer and action; adding fields not present in the default action definition; removing fields from an action by setting \texttt{hidden=True}; and overriding field characteristics already customized at the action level through \texttt{ActionField}.
+
+The configuration resolution follows a strict precedence hierarchy where \texttt{CustomerActionField} overrides \texttt{ActionField}, and \texttt{CustomerAction} overrides \texttt{Action}. This precedence is transparently applied by the retrieval methods, ensuring that the frontend receives the effective configuration without requiring awareness of the underlying hierarchy.
+
+\subsubsection{Service Block-Based Action Association}
+
+Action availability for customers is determined through a service block mechanism that replaces the granular one-to-one associations used in SRP. Each customer possesses a set of service blocks derived from contract information retrieved from the Economics system. Actions are associated with one or more service blocks, and a customer has access to all actions whose service blocks intersect with those in their possession. This set-based association model significantly reduces administrative overhead while providing flexible commercial packaging of service capabilities.
+
+The system also supports direct customer-action associations for edge cases where a customer requires a highly specialized action not appropriate for service block classification. These customer-specific actions are visible only to the designated customer and operate outside the service block framework. For backward compatibility during the transition from SRP, the system maintains support for legacy granular associations through the \texttt{use\_service\_blocks} query parameter on relevant API endpoints.
+
+\subsubsection{Field Type System and Validation}
+
+The catalog implements a comprehensive field type system with specialized validation and behavior for each type. Simple types include text, textarea, password, email, numeric, integer, telephone, datetime, and date fields, each with default validation regex patterns that can be overridden. Complex types include text lists (arrays of text values with configurable minimum and maximum cardinality), selects (single or multi-select dropdowns), UPN fields (composite username@domain inputs), organization unit trees (hierarchical AD OU selection), and file uploads (with MIME type restrictions and file count limits).
+
+Select fields support three distinct option source policies: options from customer-specific parameters stored in the Economics system, accessed by parameter group and optional name filter; options from global parameters independent of customer context; and options from external API calls configured through \texttt{ExternalAPIConfiguration} objects that specify endpoints, request parameters, and response mapping logic. The API configuration system supports Jinja2 templating in endpoint patterns, enabling dynamic URL construction based on customer IDRS or other field values.
+
+\subsubsection{Templating System for Dynamic Configuration}
+
+The catalog leverages Jinja2 templating throughout the configuration layer to enable dynamic behavior without code modifications. Field autofill templates define patterns for pre-populating input values based on other field values, supporting both simple variable substitution (e.g., \texttt{\{\{ first\_name \}\}.\{\{ last\_name \}\}}) and complex string manipulation through Jinja filters (e.g., \texttt{\{\{ first\_name[0]|upper \}\}\{\{ last\_name \}\}}). External API endpoint patterns incorporate templating to construct context-specific URLs (e.g., \texttt{/api/customers/\{\{ idrs \}\}/adusers?domain=\{\{ domain \}\}}), enabling reusable API configurations that adapt to different customers and field values.
+
+The templating context includes all field names from the associated action, the customer's IDRS identifier, and customer code, providing comprehensive access to contextual information for template rendering. This templating capability is utilized by both backend validation logic and frontend presentation layer, ensuring consistent behavior across the system.
+
+\subsubsection{Target Machine Strategy Pattern}
+
+The determination of where service requests execute is abstracted through the Strategy pattern implemented in \texttt{ActionTargetTypes}. Each action specifies a \texttt{target\_type} enumeration value (Domain Controller, Exchange Server, Internal Worker, or SRP Agent) that maps to a concrete strategy class implementing \texttt{BaseActionTargetType}. Each strategy encapsulates the logic for identifying the source field that determines the target (if applicable), validating its presence in the action's field set, extracting its value from service request fields, and resolving the final target machine hostname or IP address.
+
+For example, the \texttt{DCFromDomainTargetType} strategy identifies the domain field (ID 112), validates it references customer parameters with group "DOMINIO", extracts the domain value from the service request, and resolves it to the corresponding Domain Controller FQDN through the \texttt{convert\_domain\_name\_to\_dc} utility. This abstraction enables addition of new target types without modifying core execution logic, simply by implementing the strategy interface and adding the corresponding enumeration value.
+
+\subsubsection{Additional Script Parameters Strategy Pattern}
+
+Beyond form field values, actions can specify additional parameter groups to be injected into execution scripts through the \texttt{additional\_script\_parameters\_groups} array field. Available groups include Office 365 credentials, Domain Controller server derived from the domain field, and Exchange Server derived from the domain field. Each group is implemented as a strategy class inheriting from \texttt{BaseScriptParameterGroup}, which provides a \texttt{get\_parameters\_string} method that accepts a service request and returns the formatted parameter string to append to the script invocation.
+
+The \texttt{DCServerFromSRDomainScriptParametersGroup} strategy, for instance, extracts the domain value from the service request, resolves it to the DC hostname, and returns a formatted parameter string like \texttt{-Server dc01.elmec.ad}. Service request execution iterates through the configured parameter groups, invokes each strategy, and concatenates the resulting parameter strings, transparently extending the script invocation with context-specific values without requiring script template modifications.
+
+This catalog architecture achieves the primary objective of centralizing all configuration logic on the backend while providing administrators with powerful, intuitive customization capabilities that eliminate code modifications for common configuration scenarios. The three-level hierarchy, combined with the templating system and strategy patterns, delivers the flexibility required to support diverse customer requirements while maintaining a single, maintainable codebase.
+
+\subsection{Fields Validation}
 
 \subsection{Message Queue System for Asynchronous Execution Flow}
  
