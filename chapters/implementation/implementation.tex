@@ -623,7 +623,95 @@ The \texttt{DCServerFromSRDomainScriptParametersGroup} strategy, for instance, e
 
 This catalog architecture achieves the primary objective of centralizing all configuration logic on the backend while providing administrators with powerful, intuitive customization capabilities that eliminate code modifications for common configuration scenarios. The three-level hierarchy, combined with the templating system and strategy patterns, delivers the flexibility required to support diverse customer requirements while maintaining a single, maintainable codebase.
 
-\subsection{Fields Validation}
+\subsection{Field Validation System}
+
+One of the most significant improvements in SRM over the legacy system is the implementation of comprehensive field validation that occurs before service request creation or modification. This validation layer ensures data integrity and provides immediate feedback to users, preventing invalid requests from entering the execution pipeline.
+
+\subsubsection{Validation Architecture}
+
+The validation logic is centralized in the \texttt{ServiceRequestValidationMixin} located in \texttt{src/execution/mixins/}, implementing a reusable component that multiple API endpoints leverage to ensure consistent validation behavior. This architectural decision eliminates code duplication across seven distinct endpoints that require field validation, including internal integration endpoints, standard CRUD operations, and dedicated validation endpoints.
+
+The validation system is organized into two complementary categories that operate at different granularities:
+
+\begin{itemize}
+  \item \textbf{Global Validators}: operate on the complete field set, verifying properties that emerge from field relationships rather than individual field characteristics. These validators receive lists of submitted fields and mandatory fields, checking for duplicate field submissions (where the same field appears multiple times in a single request) and mandatory field completeness (ensuring all required fields are present and populated). Global validators are defined in the \texttt{GLOBAL\_VALIDATORS} list:
+    \begin{minted}[breaklines,fontsize=\small,tabsize=2,breaklines]{python}
+GLOBAL_VALIDATORS = [
+  validate_duplicated_fields,
+  validate_mandatory_fields,
+]
+  \end{minted}
+  \item \textbf{Field Validators} examine individual field-value pairs, verifying syntactic correctness, semantic validity, and compliance with field configuration. These validators receive comprehensive context including the field definition, submitted value, action-level and customer-action-level field configurations, customer object, Jinja rendering context, and the set of available fields for dependency resolution. The \texttt{FIELD\_VALIDATORS} list defines the validation sequence:
+  \begin{minted}[breaklines,fontsize=\small,tabsize=2,breaklines]{python}
+FIELD_VALIDATORS = [
+  validate_field_availability,
+  validate_field_value_regex,
+  validate_field_value_type,
+  validate_date,
+  validate_field_value_rendered_options,
+  validate_field_value_fetched_options,
+  validate_adou_tree_value,
+  validate_field_value_api,
+]
+  \end{minted}
+\end{itemize}
+
+\subsubsection{Validation Execution Flow}
+
+Field validators implement a consistent interface signature that leverages Python's keyword argument unpacking to maintain flexibility while providing type safety for required parameters:
+
+\begin{minted}[breaklines,fontsize=\small,linenos,tabsize=1]{python}
+def validate_field_value_regex(
+    field: Field, value: str | None, **_kwargs
+) -> None:
+  if field.validation_regex and value:
+    if not re.fullmatch(field.validation_regex, value):
+      raise serializers.ValidationError({
+        "fields_validation": [
+          f"The value '{value}' does not match the required "
+          f"pattern for field '{field.description}': "
+          f"{field.validation_regex}"
+        ]
+      })
+\end{minted}
+
+The \texttt{**\_kwargs} parameter enables validators to declare only the parameters they require while ignoring additional context provided by the mixin. This pattern supports incremental addition of validation capabilities without requiring modifications to existing validators, maintaining backward compatibility as the validation framework evolves.
+
+\subsubsection{Multi-Layer Validation Logic}
+
+The validation system implements progressive verification that moves from structural checks to increasingly sophisticated semantic validations:
+
+\textbf{Syntactic Validation}: The \texttt{validate\_field\_value\_regex} validator applies the field's configured regex pattern using Python's \texttt{re.fullmatch}, ensuring the entire value conforms to the expected format. For fields with default regex patterns (email, UPN, telephone, date, datetime), this provides immediate format verification. The \texttt{validate\_field\_value\_type} validator performs type-specific checks, verifying that numeric fields contain parseable numbers, boolean fields contain valid boolean literals, and date fields contain ISO 8601-compliant values.
+
+\textbf{Configuration-Based Validation}: The \texttt{validate\_field\_availability} validator verifies that submitted fields are actually configured for the specific action-customer combination, preventing injection of arbitrary fields not present in the effective catalog configuration. The \texttt{validate\_mandatory\_fields} global validator ensures all required fields are present and non-empty, accounting for the three-level override hierarchy where mandatory status may be customized at action or customer-action levels.
+
+\textbf{Option Validation}: For select and UPN fields, the system validates that submitted values match available options through two distinct mechanisms. The \texttt{validate\_field\_value\_rendered\_options} validator handles fields whose options are determined through parameter lookups or templates, retrieving the effective option set and verifying membership. The \texttt{validate\_field\_value\_fetched\_options} validator manages fields with external API option sources, executing the configured API call with appropriate context (customer IDRS, dependent field values) and validating the submitted value against the returned option set.
+
+\textbf{Specialized Validation}: The \texttt{validate\_adou\_tree\_value} validator performs specific checks for Organization Unit fields, verifying that the selected OU exists in the customer's imported directory structure. The \texttt{validate\_field\_value\_api} validator supports fields with dedicated validation endpoints, executing HTTP requests to external validation services that implement domain-specific business rules beyond generic syntactic checks.
+
+\subsubsection{Error Aggregation and Reporting}
+
+The validation framework implements comprehensive error collection that continues validation even after detecting failures, accumulating all validation errors before returning a consolidated response. This approach provides superior user experience compared to fail-fast strategies, enabling users to correct multiple issues simultaneously rather than discovering errors incrementally through repeated submissions.
+
+When validators detect violations, they raise \texttt{serializers.ValidationError} exceptions with a standardized structure:
+
+\begin{minted}[breaklines,fontsize=\small]{python}
+{
+  "errors": {
+    "fields_validation": [
+      "The value 'invalid.domain' does not match the required pattern for field 'Domain': (?:[a-z0-9]...[a-z0-9]",
+      "The value 'invalid.domain' is not a valid option for field 'Domain' (id: 2872).",
+      "Value '2025-08-30-' for field 'Disable Date' (id: 2875) is not a valid ISO 8601 date."
+    ]
+  }
+}
+\end{minted}
+
+The mixin catches these exceptions, extracts error messages, and constructs a unified response that categorizes errors by validation type. This structured error format enables frontend applications to present validation failures in context, highlighting specific form fields with their associated error messages.
+
+This comprehensive validation architecture ensures that only syntactically and semantically valid service requests enter the execution pipeline, significantly reducing execution failures caused by invalid input data and providing immediate, actionable feedback to users during the request creation process.
+
+
 
 \subsection{Message Queue System for Asynchronous Execution Flow}
  
