@@ -550,11 +550,19 @@ This organizational structure provides clear boundaries between functional domai
 
 \subsection{Catalog Management}
 
-The catalog management subsystem represents the architectural core of ServiceRequestManager, implementing a sophisticated three-level configuration hierarchy that enables high flexibility in defining and customizing service request configurations. The catalog is composed of three principal entities that form the foundation of the system's automation capabilities: \textit{Customers}, representing organizations enabled to use SRM; \textit{Actions}, representing formal definitions of executable operations with complete configuration metadata; and \textit{Fields}, representing configurable input parameters that users populate when creating service requests.
+The catalog management subsystem represents the architectural core of ServiceRequestManager, implementing a three-level configuration hierarchy that enables high flexibility in defining and customizing actions configurations. 
+
+The catalog is composed of three principal entities that form the foundation of the system's automation capabilities: \textit{Customers}, representing organizations enabled to use SRM; \textit{Actions}, representing formal definitions of executable operations with complete configuration metadata; and \textit{Fields}, representing configurable input parameters that users populate when creating service requests.
 
 \subsubsection{Three-Level Configuration Architecture}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{images/implementation/ER SRM-Catalog Hierarchy.jpg}
+    \caption{ER Diagram of tghe Three-Level Catalog Configuration Hierarchy}
+    \label{fig:er_catalog_hierarchy}
+\end{figure}
 
-The catalog implements a hierarchical override system organized across three distinct levels, each providing progressively more specific customization capabilities:
+The catalog, as shown in detail in the ER Diagram in Figure \ref{fig:er_catalog_hierarchy}, implements a hierarchical override system organized across three distinct levels, each providing progressively more specific customization capabilities:
 
 \paragraph{Level 1: Global Definitions}
 The base level consists of global Action and Field definitions (\texttt{Action}, \texttt{Field}, \texttt{ActionField} models) that establish default configurations applicable across all customers. An Action at this level defines fundamental properties including execution scripts, approval requirements, target infrastructure (Domain Controller, Exchange Server, internal worker, ...), and associated fields. Fields define input validation rules, data types (text, select, file, checkbox, etc.), regex patterns, and dependency relationships with other fields. The \texttt{ActionField} association model links fields to actions while allowing action-specific overrides of field properties such as validation rules or display characteristics.
@@ -565,19 +573,35 @@ The \texttt{CustomerAction} model enables customer-specific modifications to act
 \paragraph{Level 3: Customer-Action-Specific Field Customization}
 The \texttt{CustomerActionField} model provides the finest granularity of customization, allowing modifications to individual field behavior for specific customer-action combinations. This enables four critical operations: modifying existing field properties (validation regex, mandatory status, dependencies) for a specific customer and action; adding fields not present in the default action definition; removing fields from an action by setting \texttt{hidden=True}; and overriding field characteristics already customized at the action level through \texttt{ActionField}.
 
-The configuration resolution follows a strict precedence hierarchy where \texttt{CustomerActionField} overrides \texttt{ActionField}, and \texttt{CustomerAction} overrides \texttt{Action}. This precedence is transparently applied by the retrieval methods, ensuring that the frontend receives the effective configuration without requiring awareness of the underlying hierarchy.
+The configuration resolution follows a strict precedence hierarchy where \texttt{CustomerActionField} overrides \texttt{ActionField}, \texttt{ActionField} overrides \texttt{Field}, and \texttt{CustomerAction} overrides \texttt{Action}. This precedence is transparently applied by the retrieval methods, ensuring that the frontend receives the effective configuration without requiring awareness of the underlying hierarchy.
 
 \subsubsection{Service Block-Based Action Association}
 
-Action availability for customers is determined through a service block mechanism that replaces the granular one-to-one associations used in SRP. Each customer possesses a set of service blocks derived from contract information retrieved from the Economics system. Actions are associated with one or more service blocks, and a customer has access to all actions whose service blocks intersect with those in their possession. This set-based association model significantly reduces administrative overhead while providing flexible commercial packaging of service capabilities.
+Action availability for customers is determined through a service block mechanism that replaces the granular one-to-one associations used in SRP. Each customer possesses a set of service blocks derived from contract information retrieved from the Economics system. Actions are associated with one or more service blocks, and a customer has access to all actions whose service blocks intersect with those in their possession. 
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.6\textwidth]{images/implementation/customer-sbs-sets.png}
+    \caption{Set representation of actions availability via Customer-Service Block-Action Associations}
+    \label{fig:customer-sbs-sets}
+\end{figure}
+
+This set-based association model, represented in Figure \ref{fig:customer-sbs-sets}, significantly reduces administrative overhead while providing flexible commercial packaging of service capabilities.
 
 The system also supports direct customer-action associations for edge cases where a customer requires a highly specialized action not appropriate for service block classification. These customer-specific actions are visible only to the designated customer and operate outside the service block framework. For backward compatibility during the transition from SRP, the system maintains support for legacy granular associations through the \texttt{use\_service\_blocks} query parameter on relevant API endpoints.
 
 \subsubsection{Field Type System and Validation}
 
-The catalog implements a comprehensive field type system with specialized validation and behavior for each type. Simple types include text, textarea, password, email, numeric, integer, telephone, datetime, and date fields, each with default validation regex patterns that can be overridden. Complex types include text lists (arrays of text values with configurable minimum and maximum cardinality), selects (single or multi-select dropdowns), UPN fields (composite username@domain inputs), organization unit trees (hierarchical AD OU selection), and file uploads (with MIME type restrictions and file count limits).
+The catalog implements a comprehensive field type system with specialized validation and behavior for each type. Simple types include text, textarea, password, email, numeric, integer, telephone, datetime, and date fields, each with default validation regex patterns that can be overridden. Complex types include text lists (arrays of text values with configurable minimum and maximum cardinality), selects (single or multi-select dropdowns), UPN fields (composite logon@domain inputs), organization unit trees (hierarchical AD OU selection), and file uploads (with MIME type restrictions and file count limits).
 
-Select fields support three distinct option source policies: options from customer-specific parameters stored in the Economics system, accessed by parameter group and optional name filter; options from global parameters independent of customer context; and options from external API calls configured through \texttt{ExternalAPIConfiguration} objects that specify endpoints, request parameters, and response mapping logic. The API configuration system supports Jinja2 templating in endpoint patterns, enabling dynamic URL construction based on customer IDRS or other field values.
+Select fields support three distinct option source policies: 
+\begin{itemize}
+  \item customer-specific options (e.g. domains, users, databases, Office 365 Licenses, etc...);
+  \item globally scoped options, independent of customer context (e.g., countries, languages, etc...);
+  \item options from external API calls configured through \texttt{ExternalAPIConfiguration} objects that specify endpoints, request parameters, and response mapping logic. 
+\end{itemize}
+
+The API configuration system supports Jinja2 templating in endpoint patterns, enabling dynamic URL construction based on customer IDRS or other field values.
 
 \subsubsection{Templating System for Dynamic Configuration}
 
@@ -587,9 +611,9 @@ The templating context includes all field names from the associated action, the 
 
 \subsubsection{Target Machine Strategy Pattern}
 
-The determination of where service requests execute is abstracted through the Strategy pattern implemented in \texttt{ActionTargetTypes}. Each action specifies a \texttt{target\_type} enumeration value (Domain Controller, Exchange Server, Internal Worker, or SRP Agent) that maps to a concrete strategy class implementing \texttt{BaseActionTargetType}. Each strategy encapsulates the logic for identifying the source field that determines the target (if applicable), validating its presence in the action's field set, extracting its value from service request fields, and resolving the final target machine hostname or IP address.
+The determination of where service requests execute is abstracted through the Strategy pattern\footnote{The \textit{Strategy Design Pattern} is a behavioral pattern that enables selecting an algorithm's behavior at runtime by encapsulating each algorithm within a separate, interchangeable class. In this pattern, a \textbf{Context} object maintains a reference to a \textbf{Strategy} interface, which defines a common contract for all supported algorithms. \textbf{Concrete Strategy} classes implement this interface, providing distinct algorithmic behaviors. By delegating the execution to a chosen Strategy, the Context remains independent of specific algorithm implementations.} implemented in \texttt{ActionTargetTypes}. Each action specifies a \texttt{target\_type} enumeration value (Domain Controller, Exchange Server, Internal Worker, or SRP Agent) that maps to a concrete strategy class implementing \texttt{BaseActionTargetType}. Each strategy encapsulates the logic for identifying the source field that determines the target (if applicable), validating its presence in the action's field set, extracting its value from service request fields, and resolving the final target machine hostname or IP address.
 
-For example, the \texttt{DCFromDomainTargetType} strategy identifies the domain field (ID 112), validates it references customer parameters with group "DOMINIO", extracts the domain value from the service request, and resolves it to the corresponding Domain Controller FQDN through the \texttt{convert\_domain\_name\_to\_dc} utility. This abstraction enables addition of new target types without modifying core execution logic, simply by implementing the strategy interface and adding the corresponding enumeration value.
+For example, the \texttt{DCFromDomainTargetType} strategy identifies the domain field, extracts the domain value from the service request, and resolves it to the corresponding Domain Controller FQDN\footnote{Fully Qualified Domain Name, e.g. "\texttt{dc01.elmec.ad}"}. This abstraction enables addition of new target types without modifying core execution logic, simply by implementing the strategy interface and adding the corresponding enumeration value.
 
 \subsubsection{Additional Script Parameters Strategy Pattern}
 
