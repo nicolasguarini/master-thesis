@@ -713,7 +713,65 @@ This comprehensive validation architecture ensures that only syntactically and s
 
 
 
-\subsection{Message Queue System for Asynchronous Execution Flow}
+\subsection{Asynchronous Execution Flow}
+
+The service request execution workflow represents a fundamental architectural departure from the legacy SRP system, replacing the polling-based SSIS job mechanism with an event-driven asynchronous task orchestration model. In SRP, the creation flow involved MyElmec invoking MySupport to create a ticket, HDA invoking SRP to create the service request in NEW state, and scheduled SSIS jobs periodically scanning for new requests to initiate execution. The SRM architecture inverts this model: MyElmec directly invokes SRM for field validation and service request creation, SRM creates the HDA ticket and associates it with the request, and Celery tasks are immediately triggered to orchestrate the execution flow without polling delays.
+
+\subsubsection{Execution Trigger Endpoints}
+
+The execution flow is initiated through eight API endpoints in the \texttt{execution} app that validate state transitions and enqueue appropriate Celery tasks:
+
+\begin{itemize}
+\item \texttt{POST /api/customers/\{IDRS\}/service-requests/} creates a new service request and initiates the execution flow
+\item \texttt{PATCH /api/customers/\{IDRS\}/service-requests/} resumes execution for requests in NEW, ERROR, or SUSPENDED states by returning them to NEW
+\item \texttt{POST /api/customers/\{IDRS\}/service-requests/approve/} transitions requests from WAIT4APPROVAL to APPROVED
+\item \texttt{POST /api/customers/\{IDRS\}/service-requests/reject/} transitions requests to REJECTED state
+\item \texttt{POST /api/customers/\{IDRS\}/service-requests/suspend/} places requests in SUSPENDED state
+\item \texttt{POST /api/integration/provision/webhooks/execution-completed} receives execution completion callbacks from Provision Prime
+\item \texttt{POST /api/integration/customers/\{IDRS\}/service-requests/} provides integration endpoint for external systems
+\item \texttt{POST /api/integration/customers/\{IDRS\}/service-requests/create-from-ticket/} supports ticket-initiated request creation
+\end{itemize}
+
+These endpoints are exclusively available for service requests with actions configured for SRM management (\texttt{target\_type} != SRP), ensuring that legacy requests continue routing through the SRP Agent until full migration is complete.
+
+\subsubsection{State Machine and Task Orchestration}
+
+The execution flow (described in higher level in Section \ref{sec:sr-exec-flow}) implements a state machine with seven distinct states (NEW, WAIT4APPROVAL, APPROVED, PENDING, EXECUTED, SUSPENDED, ERROR, REJECTED) coordinated through six specialized Celery tasks:
+
+\paragraph{manage\_new\_service\_request\_and\_ticket}
+This task handles newly created service requests in NEW state, implementing the initial routing decision based on approval requirements. If the action configuration specifies approval necessity, the task transitions the request to WAIT4APPROVAL state and updates the HDA ticket with a notification for the approval team. For requests that can execute automatically, the task performs a rapid state progression: NEW → APPROVED → PENDING, schedules the \texttt{check\_pending\_service\_request\_after\_2\_hours} task for monitoring, and immediately triggers execution through the Ansible playbook.
+
+\paragraph{manage\_approved\_service\_request}
+Invoked when a service request transitions to APPROVED state (either through automatic approval or explicit operator action), this task verifies the current state, transitions to PENDING, schedules the 2-hour monitoring task, and initiates execution through the appropriate channel. This separation from the new request handler enables clean handling of approval workflow completion.
+
+\paragraph{manage\_rejected\_service\_request}
+Handles rejection workflow by verifying that the request is in REJECTED state and requires approval (preventing rejection of auto-executed requests), then closes the associated HDA ticket with the standardized solution text "The Service Request has been rejected by an operator."
+
+\paragraph{manage\_suspended\_service\_request}
+Processes suspension requests by adding a communication to the HDA ticket explaining that "The Service Request has been suspended because is incomplete, and therefore requires user intervention." This state enables partial completion scenarios where missing information or environmental issues require user action before execution can proceed.
+
+\paragraph{manage\_provision\_completed\_execution}
+Receives execution completion webhooks from Provision Prime containing execution status, logs, and result metadata. For failed executions, the task transitions the request from PENDING to ERROR and adds detailed failure information as an HDA ticket communication, enabling operators to diagnose issues. For successful executions, the task transitions to EXECUTED state and closes the HDA ticket with execution logs and completion timestamp, finalizing the service request lifecycle.
+
+\paragraph{check\_pending\_service\_request\_after\_2\_hours}
+Implements monitoring logic that verifies execution completion within expected timeframes. If a service request remains in PENDING state two hours after execution initiation, the task validates that the associated HDA ticket is assigned to the correct support group. If the ticket is in an incorrect group, the task reassigns it, ensuring that stalled executions receive appropriate attention from support teams.
+
+\paragraph{add\_ticket\_attachment}
+Handles asynchronous upload of file attachments from service request forms to HDA tickets, decoupling the file transfer operation from the request creation flow to maintain responsiveness for large file uploads.
+
+\subsubsection{Script Execution via Ansible}
+
+The actual execution of PowerShell scripts on customer Domain Controllers is orchestrated through Provision Prime, an internal automation platform that provides a RESTful API wrapper around Ansible playbook invocations. The SRM system interacts with Provision through the "Execute Service Request" provider (ID: 1002) associated with the \texttt{executeSR.yml} playbook, passing three parameters: \texttt{sr\_script\_parameters} containing formatted parameter string (e.g., \texttt{-IDRS "CUSTOMER" -Domain "customer.local"}), \texttt{sr\_script\_file\_name} specifying the PowerShell script name (e.g., \texttt{CreateUser.ps1}), and \texttt{idsr} identifying the service request for correlation.
+
+The Ansible playbook implements a five-phase execution pattern designed to maintain compatibility with existing PowerShell scripts while introducing infrastructure-as-code orchestration. The preparation phase creates necessary directories on the target Domain Controller. The file transfer phase copies support scripts and the specific service request script to the target machine using Ansible's \texttt{win\_copy} module. The execution phase invokes the PowerShell script through \texttt{win\_shell} with all configured parameters and logging redirection. The logging phase executes \texttt{LogReader.ps1} to retrieve structured log output for transmission back to SRM. The cleanup phase removes the temporary directory, ensuring no artifacts persist on customer infrastructure.
+
+This architecture achieves complete transparency for script developers, who continue writing standard PowerShell scripts without Ansible-specific modifications, while the orchestration layer provides centralized execution logging, error handling, and state management.
+
+\subsubsection{Resilient Ticket Operations}
+
+A critical challenge in the execution flow is managing HDA ticket operations when tickets are locked by operators actively working on them. The system implements exponential backoff retry logic: when a ticket operation fails due to locking, the task sleeps for 10 seconds and retries, attempting up to 5 times. If the ticket remains locked after all retries, the service request transitions to ERROR state and a communication is added to the ticket alerting operators to the automation failure. This resilience pattern prevents transient locking issues from causing permanent execution failures while maintaining visibility when persistent blocking occurs.
+
+The asynchronous execution architecture eliminates the polling delays inherent in the SRP SSIS job model, provides immediate state transition feedback, enables sophisticated retry and error handling logic, and maintains comprehensive execution audit trails through HDA ticket integration, representing a substantial improvement in both performance and operational visibility.
  
 \subsection{Implementation of Customers' Master Data Import}
 
