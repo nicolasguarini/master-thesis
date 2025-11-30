@@ -927,8 +927,73 @@ This comprehensive monitoring architecture provides multiple layers of observabi
 
 \section{Frontend Application Implementation}
 
+The SRM frontend architecture implements two distinct user interfaces targeting different audiences and operational requirements: an end-user service request creation platform integrated into the customer-facing MyElmec portal, and an administrative configuration platform designed for system administrators to manage the catalog hierarchy.
+
 \subsection{Technological Overview}
+
+The frontend applications are built using Vue.js 3, leveraging the Composition API for improved code organization and type safety through TypeScript integration. Vue 3's reactivity system provides efficient DOM updates and component rendering, critical for handling the dynamic field configurations that characterize SRM's flexible catalog model.
+
+State management is implemented through Pinia, Vue's official state management library that replaces the legacy Vuex architecture. Pinia provides a simpler, more intuitive API with full TypeScript support and DevTools integration, enabling centralized management of application state including user authentication, customer context (IDRS), form data, and cached external options. The store architecture implements modules for catalog data, service request state, and API configuration, ensuring clear separation of concerns and facilitating testing and maintenance.
+
+The component architecture leverages a custom design system library (ElmecUIX) that provides reusable UI components (inputs, selects, buttons, date pickers, file uploads) with consistent styling and behavior across light and dark themes. This design system ensures visual coherence across all company applications while providing accessibility features and responsive design patterns.
 
 \subsection{Service Request Creation Platform for End Users}
 
+The service request creation interface is integrated into MyElmec, the customer-facing portal where clients manage support tickets, view contract information, and access company services. The SRM integration provides a dynamic form builder that renders service request creation forms based on the effective catalog configuration retrieved from the backend API.
+
+\subsubsection{Dynamic Form Rendering Architecture}
+
+The form rendering logic implements a sophisticated field resolution system that handles the three-level configuration hierarchy transparently. When a user navigates to create a service request for a specific action, the frontend executes a GET request to \texttt{/api/catalog/customers/\{IDRS\}/actions/\{actionId\}/}, receiving a complete action definition including resolved field configurations, validation rules, dependencies, and external API configurations. This single API call returns the effective configuration with all customer-specific and action-specific overrides already applied, eliminating the need for frontend configuration resolution logic.
+
+The component architecture separates concerns through a parent \texttt{NewServiceRequest.vue} component that manages overall form state and submission logic, and a specialized \texttt{ServiceRequestField.vue} component that renders individual fields based on their type. The parent component maintains a reactive \texttt{formData} object containing all field values, a \texttt{fieldNamesToIds} mapping for backend submission, and state tracking for edited fields, external options, and loading states.
+
+\subsubsection{Field Type Implementations}
+
+The \texttt{ServiceRequestField} component implements rendering logic for 14 distinct field types, each with type-specific behavior:
+
+\textbf{Text and textarea fields} render standard input components with optional autofill template support. When an autofill template is defined, the field watches dependent field values and automatically populates using Jinja template rendering through the Nunjucks library. Users can manually edit autofilled values, which marks the field as edited and disables automatic updates until explicitly reset via a restore button.
+
+\textbf{Text list fields} implement dynamic array inputs where users can add or remove list items up to configured minimum and maximum cardinality constraints. Each list item is stored in a separate reactive property (\texttt{fieldName\_0}, \texttt{fieldName\_1}, etc.), then concatenated with comma separators for backend submission. This approach provides intuitive UI for multi-value inputs like IP address lists while maintaining backward compatibility with comma-separated string validation.
+
+\textbf{Select fields} implement three distinct data source patterns. Fields with pre-rendered options (from customer or global parameters) receive the complete option set in the initial API response and render a filterable dropdown. Fields with external API option sources trigger asynchronous option loading when dependent fields are populated, displaying loading indicators during fetch operations and error states with retry capabilities on failure. Searchable select fields implement remote filtering, executing API queries as users type and debouncing requests to reduce backend load.
+
+\textbf{UPN fields} render as composite inputs with a text field for the username portion, an "@" separator, and a select dropdown for the domain suffix. The prefix field supports autofill templates (commonly \texttt{\{\{ first\_name \}\}.\{\{ last\_name \}\}}), while the suffix options are loaded from the configured external API. The composite value is assembled on form submission as \texttt{prefix@suffix}.
+
+\textbf{Password fields} render dual inputs with show/hide toggle buttons, implementing client-side validation that ensures the confirmation field matches the original value. Both values are transmitted to the backend, where additional complexity validation occurs according to the configured regex pattern.
+
+\textbf{File fields} leverage an internal component to handle file selection with MIME type filtering and multiple file support. Selected files are converted to Base64-encoded JSON objects containing the file data and filename, then stored in the form data object for submission. This approach avoids multipart/form-data complexity while enabling straightforward serialization in the backend.
+
+\textbf{AD OU Tree fields} render a specialized tree picker component that retrieves the customer's imported organizational unit hierarchy and displays it as an interactive tree structure. Users navigate the tree to select the target OU, with the distinguished name stored as the field value.
+
+\subsubsection{Dependency Management and Field Enabling}
+
+The form implements sophisticated field dependency resolution through reactive watchers that monitor formData changes and evaluate dependency conditions. Fields specify \texttt{depends\_on} arrays containing names of prerequisite fields that must be populated before the dependent field becomes enabled. The \texttt{isDisabled} computed function checks whether any dependency fields are empty or null, disabling the field and preventing option loading or user input until dependencies are satisfied.
+
+When a dependency field value changes, the form resets any dependent field values, clears their cached external options, and triggers re-fetching if the new dependency values enable the field. This ensures that option lists and validation rules adapt to context changes, such as reloading available users when the selected domain changes.
+
+\subsubsection{Validation and Submission Flow}
+
+Client-side validation is implemented through Element Plus form validation rules dynamically generated from the action field configurations. The \texttt{formRules} computed property constructs validation rule objects for each field, including required field checks for mandatory fields, regex validation using the configured patterns and error messages, and custom validators for password confirmation matching.
+
+For text list fields, validation iterates through each comma-separated item, applying the field regex to individual values and constructing error messages that identify which specific item failed validation. This provides precise feedback for array inputs while maintaining consistent validation logic.
+
+Upon form submission, the \texttt{handleSubmit} function executes Element Plus form validation, collecting all field errors before proceeding. If validation passes, the function constructs a request payload containing action\_id and arrays of field\_id/value pairs for action fields, HDA external fields, and HDA classification fields. The payload is transmitted via POST to \texttt{/api/customers/\{IDRS\}/service-requests/}, with the backend performing additional server-side validation before creating the service request and associated HDA ticket.
+
+The submission process implements three states: loading (during API call), success (displaying ticket reference with navigation options), and error (showing aggregated error messages from backend field validation). This state management provides clear user feedback throughout the submission lifecycle.
+
+\subsubsection{External Options Caching and API Optimization}
+
+The form implements intelligent caching of external API option responses to minimize redundant backend calls. The \texttt{calledUrls} ref maintains a Set of previously fetched URLs, preventing re-execution of identical queries within the same form session. Option data is stored in the \texttt{externalOptions} reactive object keyed by API configuration name, enabling sharing of option sets across multiple fields that use the same external API configuration.
+
+For searchable fields with remote filtering, the caching strategy allows repeated queries with different search terms while caching results for each unique URL. The \texttt{remoteMethod} function debounces user input, triggering API calls only after typing pauses, then updates the local option set without overwriting cached results from previous searches.
+
 \subsection{Administrative Configuration Platform for System Administrators}
+
+The administrative interface for catalog configuration management is currently in the design phase with the internal UX team, with planned integration into DeliveryHub, the company's internal operations portal. The platform will provide CRUD interfaces for managing Actions, Fields, ActionField associations, CustomerActions, and CustomerActionFields, implementing the same three-level configuration hierarchy exposed by the backend API.
+
+The administrative interface will implement form-based editors for field properties including validation regex patterns, autofill templates, external API configurations, and dependency definitions. Visual representation of the catalog hierarchy will enable administrators to understand override relationships and identify configuration conflicts, such as duplicate field names within an action scope.
+
+Preview functionality will allow administrators to render test forms showing how end users will experience configured actions, enabling validation of field behavior, dependency logic, and autofill templates before deployment to production. Integration with the backend validation endpoints will provide real-time feedback on configuration correctness, ensuring that catalog modifications maintain system integrity.
+
+The frontend architecture achieves the critical design objective of providing dynamic, configuration-driven user interfaces that adapt to catalog changes without requiring code modifications or redeployment. The separation of configuration from presentation logic enables rapid iteration on service request workflows, supporting the business agility required for managed service operations.
+
