@@ -729,7 +729,6 @@ The execution flow is initiated through eight API endpoints in the \texttt{execu
 \item \texttt{POST /api/customers/\{IDRS\}/service-requests/suspend/} places requests in SUSPENDED state
 \item \texttt{POST /api/integration/provision/webhooks/execution-completed} receives execution completion callbacks from Provision Prime
 \item \texttt{POST /api/integration/customers/\{IDRS\}/service-requests/} provides integration endpoint for external systems
-\item \texttt{POST /api/integration/customers/\{IDRS\}/service-requests/create-from-ticket/} supports ticket-initiated request creation
 \end{itemize}
 
 These endpoints are exclusively available for service requests with actions configured for SRM management (\texttt{target\_type} != SRP), ensuring that legacy requests continue routing through the SRP Agent until full migration is complete.
@@ -742,7 +741,7 @@ The execution flow (described in higher level in Section \ref{sec:sr-exec-flow})
 This task handles newly created service requests in NEW state, implementing the initial routing decision based on approval requirements. If the action configuration specifies approval necessity, the task transitions the request to WAIT4APPROVAL state and updates the HDA ticket with a notification for the approval team. For requests that can execute automatically, the task performs a rapid state progression: NEW → APPROVED → PENDING, schedules the \texttt{check\_pending\_service\_request\_after\_2\_hours} task for monitoring, and immediately triggers execution through the Ansible playbook.
 
 \paragraph{manage\_approved\_service\_request}
-Invoked when a service request transitions to APPROVED state (either through automatic approval or explicit operator action), this task verifies the current state, transitions to PENDING, schedules the 2-hour monitoring task, and initiates execution through the appropriate channel. This separation from the new request handler enables clean handling of approval workflow completion.
+Invoked when a service request transitions to APPROVED state (through explicit operator action), this task verifies the current state, transitions to PENDING, schedules the 2-hour monitoring task, and initiates execution through the appropriate channel. This separation from the new request handler enables clean handling of approval workflow completion.
 
 \paragraph{manage\_rejected\_service\_request}
 Handles rejection workflow by verifying that the request is in REJECTED state and requires approval (preventing rejection of auto-executed requests), then closes the associated HDA ticket with the standardized solution text "The Service Request has been rejected by an operator."
@@ -761,7 +760,7 @@ Handles asynchronous upload of file attachments from service request forms to HD
 
 \subsubsection{Script Execution via Ansible}
 
-The actual execution of PowerShell scripts on customer Domain Controllers is orchestrated through Provision Prime, an internal automation platform that provides a RESTful API wrapper around Ansible playbook invocations. The SRM system interacts with Provision through the "Execute Service Request" provider (ID: 1002) associated with the \texttt{executeSR.yml} playbook, passing three parameters: \texttt{sr\_script\_parameters} containing formatted parameter string (e.g., \texttt{-IDRS "CUSTOMER" -Domain "customer.local"}), \texttt{sr\_script\_file\_name} specifying the PowerShell script name (e.g., \texttt{CreateUser.ps1}), and \texttt{idsr} identifying the service request for correlation.
+The actual execution of PowerShell scripts on customer Domain Controllers is orchestrated through Provision Prime, an internal automation platform that provides a RESTful API wrapper around Ansible playbook invocations. The SRM system interacts with Provision through the "Execute Service Request" provider associated with the \texttt{executeSR.yml} playbook, passing three parameters: \texttt{sr\_script\_parameters} containing formatted parameter string (e.g., \texttt{-IDRS "CUSTOMER" -Domain "customer.local"}), \texttt{sr\_script\_file\_name} specifying the PowerShell script name (e.g., \texttt{DismissUser.ps1}), and \texttt{idsr} identifying the service request for correlation.
 
 The Ansible playbook implements a five-phase execution pattern designed to maintain compatibility with existing PowerShell scripts while introducing infrastructure-as-code orchestration. The preparation phase creates necessary directories on the target Domain Controller. The file transfer phase copies support scripts and the specific service request script to the target machine using Ansible's \texttt{win\_copy} module. The execution phase invokes the PowerShell script through \texttt{win\_shell} with all configured parameters and logging redirection. The logging phase executes \texttt{LogReader.ps1} to retrieve structured log output for transmission back to SRM. The cleanup phase removes the temporary directory, ensuring no artifacts persist on customer infrastructure.
 
@@ -773,9 +772,158 @@ A critical challenge in the execution flow is managing HDA ticket operations whe
 
 The asynchronous execution architecture eliminates the polling delays inherent in the SRP SSIS job model, provides immediate state transition feedback, enables sophisticated retry and error handling logic, and maintains comprehensive execution audit trails through HDA ticket integration, representing a substantial improvement in both performance and operational visibility.
  
-\subsection{Implementation of Customers' Master Data Import}
+\subsection{Customers' Master Data Import}
+
+The master data import subsystem implements a comprehensive pipeline for extracting directory information from customer Active Directory and Exchange environments, persisting it to object storage, and materializing it in the relational database to support rapid field validation and auto-completion in service request forms. This architecture eliminates the real-time LDAP query latency that would otherwise impact user experience while providing a consistent query interface regardless of customer infrastructure availability.
+
+\subsubsection{Scheduled Export Orchestration}
+
+The export process is triggered by a Django management command (\texttt{import\_master\_data}) executed via the Kubernetes CronJob \texttt{export-master-data} scheduled for weekday execution at 02:00 AM. The command implements a discovery and execution pattern that identifies all customers with configured Domain Controllers and orchestrates parallel export operations:
+
+\begin{minted}[breaklines,fontsize=\small]{python}
+enabled_customers: QuerySet[Customer] = (
+    Customer.objects.filter(
+        customerparameter__group="DOMINIO",
+        customerparameter__name__contains="_DOMINIO_DC",
+    )
+    .prefetch_related(
+        Prefetch(
+            "customerparameter_set",
+            queryset=CustomerParameter.objects.filter(
+                group="DOMINIO", name__contains="_DOMINIO_DC"
+            ),
+            to_attr="dc_parameters",
+        )
+    )
+    .distinct()
+)
+\end{minted}
+
+For each customer, the command iterates through their Domain Controller parameters, extracts the domain name from the DC FQDN, and constructs the Configuration Item (CI) name following the convention \texttt{\{IDRS\}\_\{DC\_HOSTNAME\}}. The command queries the internal NCFG (Network Configuration) system to validate that the DC is properly registered and retrieve its management hostname, filtering out invalid or decommissioned infrastructure. For validated DCs, the command invokes the Provision Prime API to execute the \texttt{ad\_master\_data\_export} playbook, passing the CI name and domain as parameters, and logs the returned execution UUID for tracking.
+
+\subsubsection{Ansible Export Playbook}
+
+The \texttt{ad\_master\_data\_export.yml} playbook implements a four-phase extraction and upload workflow that executes entirely on the target Domain Controller with delegation to localhost for storage operations:
+
+\paragraph{Phase 1: Data Extraction}
+The playbook executes five PowerShell queries using Ansible's \texttt{win\_shell} module to extract directory entities in JSON format. The \texttt{Get-ADUser} cmdlet retrieves all user accounts with DistinguishedName and SamAccountName properties; \texttt{Get-ADGroup} extracts security and distribution groups; \texttt{Get-ADOrganizationalUnit} enumerates the OU hierarchy; \texttt{Get-ADDefaultDomainPasswordPolicy} captures password complexity requirements; and a custom script aggregates UPN suffixes from both the forest configuration and the local domain. Each query pipes results through \texttt{Select-Object} to limit property sets, then \texttt{ConvertTo-Json -Compress} to generate compact JSON serialization stored in Ansible register variables.
+
+\paragraph{Phase 2: Local Serialization}
+Using \texttt{delegate\_to: localhost}, the playbook writes the JSON output from each query to temporary files in \texttt{/tmp/} with naming convention \texttt{\{domain\}\_ad\_\{type\}.json}. This delegation pattern avoids network transfer of raw PowerShell output, instead processing it on the control node where subsequent MinIO operations will execute.
+
+\paragraph{Phase 3: Object Storage Upload}
+The playbook leverages the internal \texttt{objstorage} Ansible role to upload each JSON file to Ceph RGW through the S3-compatible API. Files are organized in a hierarchical structure: \texttt{master\_data\_exports/\{idrs\}/ad/\{domain\}\_ad\_\{type\}.json}, enabling efficient per-customer and per-domain retrieval. The role receives S3 credentials (access key, secret key), endpoint URL (\texttt{rgw.elmec.com}), target bucket (\texttt{servicerequestmanager-qa}), and object key, executing PUT operations with empty permission arrays (indicating default bucket ACLs apply).
+
+\paragraph{Phase 4: Cleanup}
+The final task removes temporary JSON files from \texttt{/tmp/} using Ansible's \texttt{file} module with \texttt{state: absent}, preventing accumulation of sensitive data on the control node. The \texttt{ignore\_errors: yes} directive ensures cleanup failures don't mark the entire playbook execution as failed.
+
+\subsubsection{Import Processing Pipeline}
+
+The import phase is triggered through the \texttt{manage\_completed\_ad\_export} Celery task, which receives a customer ID and orchestrates retrieval and database materialization of exported data. The task instantiates an \texttt{S3Storage} client and lists all objects in the customer's export directory, filtering for JSON files:
+
+\begin{minted}[breaklines,fontsize=\small]{python}
+base_dir: str = f"master_data_exports/{idrs}/active-directory/"
+files: List[str] = minio.list_objects_in_directory(prefix=base_dir)
+
+for file_path in files:
+    if not file_path.endswith(".json"):
+        continue
+    
+    file_content = minio.read_object(object_name=file_path)
+    file_name = file_path.split("/")[-1]
+    domain = file_name.split("_", 1)[0]
+\end{minted}
+
+The task classifies each file by matching its path against \texttt{AdImportTypes} enumeration values (AD\_USER, AD\_GROUP, AD\_OU, AD\_UPN\_SUFFIX, AD\_PASSWORD\_POLICY), then invokes type-specific extraction functions that parse JSON content and construct typed data structures (\texttt{AdUserData}, \texttt{AdGroupData}, etc.) containing customer, domain, and entity-specific fields.
+
+After accumulating all typed data lists, the task invokes processing functions that implement sophisticated differential synchronization logic using Django's bulk operations for efficiency. The \texttt{process\_users\_for\_customer} function exemplifies this pattern:
+
+\begin{minted}[breaklines,fontsize=\small]{python}
+logon_names_from_file: set[(str, str)] = set(
+    (ud["domain"], ud["logon_name"]) for ud in user_data_list
+)
+
+existing_users: Dict[tuple, AdUser] = {
+    (user.domain, user.logon_name): user
+    for user in all_existing_users.select_for_update()
+}
+
+users_to_create: List[AdUser] = []
+users_to_update: List[AdUser] = []
+users_to_delete: List[AdUser] = []
+\end{minted}
+
+The function constructs sets of (domain, logon\_name) tuples from both the imported data and existing database records, then performs set operations to determine three distinct lists: users present in the import but not in the database (to create), users present in both with changed attributes (to update), and users present in the database but absent from the import (to delete). This differential approach avoids unnecessary database operations, updating only records with actual changes detected through field-by-field comparison of distinguished\_name, display\_name, and logon\_name attributes.
+
+Bulk operations execute with batches of 1000 records: \texttt{bulk\_create} for insertions, \texttt{bulk\_update} specifying only changed fields, and filtered \texttt{delete} for removals. The entire process occurs within a \texttt{@transaction.atomic} decorator, ensuring that either all changes commit successfully or the database state remains unchanged in case of errors. Similar differential processing occurs for groups, OUs, UPN suffixes, and password policies, maintaining synchronization between customer infrastructure and the materialized database representation.
+
+The task concludes by invoking \texttt{reset\_sequences} to ensure PostgreSQL auto-increment sequences align with the current maximum primary key values, preventing insertion conflicts in subsequent operations.
+
+\subsubsection{Query Interface and Validation Integration}
+
+The materialized master data is exposed through Django model managers that provide filtering and search capabilities used by both validation logic and frontend autocomplete features. When validating a service request field configured with AD user options, the validation mixin queries the \texttt{AdUser} model filtered by customer and domain extracted from dependent fields, verifying that the submitted username exists in the imported dataset. Similarly, UPN suffix validation queries the \texttt{AdUPNSuffix} model to ensure the domain portion of submitted UPNs matches registered suffixes.
+
+Frontend select fields configured with AD option sources invoke API endpoints that execute identical queries, returning JSON-serialized entity lists for population of dropdowns and type-ahead search interfaces. This shared query layer ensures validation and presentation logic operate on consistent data sources.
+
+The master data import architecture achieves several critical objectives: it decouples service request creation from customer infrastructure availability, eliminating timeout and authentication issues inherent in real-time LDAP queries; it provides sub-second query response times through indexed database access compared to multi-second LDAP query latencies; it enables comprehensive audit trails by persisting historical exports in S3 with retention policies; and it maintains data freshness through nightly scheduled exports while avoiding the operational complexity of real-time synchronization.
+
 
 \subsection{Logging and Monitoring}
+
+The SRM system implements comprehensive observability through a multi-layered monitoring architecture that combines application performance monitoring, structured logging, health checks, and alerting, providing visibility into both operational metrics and business-level indicators.
+
+\subsubsection{Application Performance Monitoring with New Relic}
+
+New Relic APM provides continuous monitoring of application performance, transaction traces, error rates, and resource utilization across all SRM components. The integration is configured through the \texttt{newrelic-admin} wrapper in the production runtime scripts, which instruments the Gunicorn process and Celery workers to capture detailed telemetry without code modifications. The \texttt{run.sh} script sets the environment-specific New Relic configuration before launching the application server:
+
+\begin{minted}[breaklines,fontsize=\small]{bash}
+export NEW_RELIC_ENVIRONMENT="$ENVIRONMENT"
+newrelic-admin run-program python3 -m gunicorn -k eventlet \
+  --worker-tmp-dir /dev/shm --bind 0.0.0.0:5000 \
+  -w 10 -t 40 --chdir "$PROJECTHOME" "$WSGIAPP"
+\end{minted}
+
+This instrumentation captures web transaction performance (request latency, throughput, error rates), database query performance with SQL statement profiling, external service call durations (HDA, Economics, Provision Prime integrations), and Celery task execution metrics. The APM dashboard enables rapid identification of performance bottlenecks, unusual error patterns, and resource saturation conditions.
+
+\subsubsection{Structured Logging Infrastructure}
+
+Application logging leverages an internal company library that wraps Loguru to provide structured logging with automatic integration to New Relic Logs. The library implements contextual log enrichment, adding metadata such as request IDs, user identifiers, customer IDRS, and service request IDs to all log entries, enabling correlation between log events and APM transactions.
+
+For scheduled jobs and Celery tasks, the \texttt{@monitor\_job} decorator provides comprehensive execution monitoring by wrapping Django management command \texttt{handle} methods and task functions:
+
+\begin{minted}[breaklines,fontsize=\small]{python}
+@monitor_job
+def handle(self, *args, **kwargs):
+    provision: ProvisionController = ProvisionController()
+    # job implementation
+\end{minted}
+
+The decorator implements several monitoring capabilities: it registers the job with New Relic as a background transaction, enabling visibility in the APM interface; captures and logs execution start time, end time, and duration; handles exceptions by catching them, extracting full tracebacks, and sending \texttt{JobException} custom events to New Relic with error type, message, and stack trace; and sends \texttt{JobCompleted} custom events with execution metadata including job name, server hostname, completion status, and duration.
+
+This structured event stream enables creation of New Relic dashboards that visualize job execution patterns, failure rates, and duration trends over time, facilitating capacity planning and anomaly detection for scheduled operations like master data imports and SRP synchronization.
+
+\subsubsection{Health Check Framework}
+
+The system implements a comprehensive health check framework using Django Health Check, exposed through the \texttt{/ht/} endpoint that is monitored every minute by the internal Prometheus-based\footnote{Prometheus is an open-source monitoring system designed for collecting, storing, and querying metrics from applications and infrastructure. It pulls metrics over HTTP, stores them in a time-series database, and lets you analyze them with its query language (PromQL). It's commonly used with Grafana for visualization.} monitoring infrastructure. Failed health checks automatically trigger alerts in OpsGenie\footnote{OpsGenie is an incident-management and alerting platform that receives alerts from your monitoring tools, filters and routes them to the right people, and manages on-call schedules. It helps teams respond faster to outages by providing escalation rules, notifications, and incident tracking.}, ensuring immediate visibility of operational issues.
+
+The health check suite includes both standard infrastructure checks and application-specific business logic validations. Standard checks include: \texttt{DatabaseBackend} verifying PostgreSQL connectivity and query execution; \texttt{Cache backend: default} validating Memcached availability and operation; \texttt{DefaultFileStorageHealthCheck} confirming S3/Ceph RGW accessibility; \texttt{MigrationsHealthCheck} ensuring all Django migrations have been applied; and \texttt{PrometheusChecker} validating metrics exposure for scraping.
+
+Two custom health checks implement SRM-specific monitoring logic:
+
+\paragraph{PendingServiceRequestsCheck}
+This check validates that service requests in PENDING state for more than two hours have their associated HDA tickets assigned to the correct support group. The check queries for service requests matching these criteria, retrieves their ticket information from HDA, and validates that the ticket group matches expectations. Failure of this check indicates stalled executions that require operator intervention, enabling proactive identification of blocked workflows before customer escalation.
+
+\paragraph{UniqueActionFieldsCheck}
+This check verifies catalog configuration integrity by ensuring that no action for any customer has duplicate field names, accounting for the three-level configuration hierarchy. The check iterates through all active customers and their accessible actions, retrieves the effective field set by applying action-level and customer-action-level overrides, and validates that field names are unique within each action. Detection of duplicates indicates configuration errors that would cause ambiguous field references in service request creation and script parameter generation, potentially causing execution failures. This proactive validation catches configuration issues immediately upon deployment rather than discovering them during production service request processing.
+
+\subsubsection{Kubernetes Pod Monitoring}
+
+The deployment configuration defines \texttt{PodMonitor} resources that enable Prometheus to scrape application-specific metrics from the backend pods. The \texttt{django-hc} PodMonitor executes periodic HTTP requests to the \texttt{/ht/} health check endpoint, verifying application responsiveness and recording availability metrics. The monitoring configuration also includes the \texttt{django} subscription label, which activates predefined Grafana dashboards and alert rules for Django applications, providing visibility into request rates, response time distributions, error rates, and database connection pool utilization.
+
+The \texttt{nginx-mtr-exp} sidecar container in the static deployment exposes Nginx operational metrics (active connections, requests per second, response codes) on port 9113, scraped by the \texttt{nginx-metrics} ServiceMonitor. This telemetry enables monitoring of static asset delivery performance and identification of frontend traffic patterns.
+
+This comprehensive monitoring architecture provides multiple layers of observability, from infrastructure health through application performance to business logic correctness, enabling rapid detection and diagnosis of issues across all system components. The integration of health checks with automated alerting ensures that operational problems surface immediately, while APM and structured logging provide the diagnostic context required for efficient root cause analysis and remediation.
+
 
 \section{Frontend Application Implementation}
 
