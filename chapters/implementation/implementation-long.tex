@@ -1,0 +1,999 @@
+\chapter{Implementation of a modular and scalable solution}
+\sloppy
+
+While the previous chapter described in detail the requirements and the new architectural design for the new ServiceRequestManager (SRM) system, proposing targeted solutions to overcome the various technological and structural limitations of the legacy SRP system, this chapter marks the transition from the theoretical plan to practical realization, focusing on the concrete implementation of a modular and scalable solution.
+
+The primary focus of this implementation lies in how the critical challenges described in the previous chapters were resolved. Specifically, it will be highlighted how the centralization of field management and configuration logic (and more generally of the catalog) on the backend eliminated the monolithic frontend and enabled a highly reusable three-level configuration system. The integration of the new execution and retrieval flow for master data through a message queue system will also be illustrated, which is essential for eliminating the dependency on the obsolete SRP Agent.
+
+\section{Automation of the Development Lifecycle through CI/CD Integration} \label{sec:ci_cd}
+% oppure DevOps Workflow Integration within the Developed System}
+
+For each feature or significant code modification, a dedicated branch is created named with the ID of the ticket associated with the modification (e.g., IN-7835). These branches are used for isolated development of new features, allowing teams to work in parallel without interference. Once the modification is complete, the branch is submitted to code review and automated testing through the CI/CD pipeline before being integrated into the main branch.
+
+There are 3 distinct live environments: \texttt{devel}, \texttt{quality}, and \texttt{production}. The company Git workflow requires that feature branches be first merged into \texttt{devel} for further testing and integration, and subsequently into \texttt{quality} for final validation before production release. This approach ensures that each modification is accurately verified and tested in environments progressively closer to production, reducing the risk of introducing bugs or regressions into the live system.
+
+\subsection{Feat Branches}
+For feat branches, the CI/CD pipeline is designed to execute a series of automatic checks aimed at ensuring code quality, security, and compliance before its integration into the main branches, thus not including the build, test, and deploy phases of the application, as shown in figure \ref{fig:feat-pipeline-workflow}.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{images/ci-cd/feat pipeline.png}
+    \caption{Feat Branches pipeline workflow}
+    \label{fig:feat-pipeline-workflow}
+\end{figure}
+
+\subsubsection{Prepare}
+The \texttt{config:pipeline} stage is responsible for preparing the execution environment by dynamically retrieving the project configuration from an external service. After installing the necessary tools, it executes an HTTP request to obtain the configuration parameters in JSON format and converts them into standardized environment variables, saving them in a .env file. This file is then published as an \textit{artifact}, so that subsequent pipeline steps can use this information to adapt their behavior to the project-specific settings.
+    
+\subsubsection{Code Quality}
+\paragraph{Complexity Check}
+The \texttt{complexity:xenon} stage is responsible for measuring code complexity through the \textit{Xenon} static analyzer \footnote{Radon is a Python static-analysis tool that evaluates code complexity by computing metrics such as cyclomatic complexity, maintainability index, and raw code statistics. It provides a quantitative assessment of the structural quality of Python code. Xenon is a supervisory tool built on top of Radon that enforces predefined complexity thresholds \cite{xenon}.}, with the goal of identifying files or functions that might be difficult to maintain. After preparing the Python environment and installing the necessary tool, the job executes the analysis by comparing the results with a predefined quality threshold. The outcome is saved in a report file and sent to the project quality monitoring system. If critical issues that exceed the allowed level are detected, the job signals a failure, thus contributing to keeping software complexity within sustainable limits over time.
+
+\paragraph{Code Formatter}
+The \texttt{formatter:black} stage aims to verify that Python code complies with the formatting conventions established by the project (PEP-8) \cite{pep8}, using the \textit{Black} tool. During the job, the shared formatting configuration is downloaded, then a check is executed on the entire repository without applying automatic modifications. The analysis outcome is saved in a report and recorded in the quality monitoring system. If files that do not conform to the required style are found, the job signals an error to ensure that all modifications respect uniform code formatting standards.
+
+\paragraph{Code Linter}
+The \texttt{linter:ruff} stage is dedicated to static code checking in order to identify errors, unsafe constructs, or constructs not compliant with internal development guidelines. A Python linter (\textit{Ruff}) is executed that analyzes the entire project and produces a report with any violations or refactoring warnings. The results are collected and sent to the quality monitoring system, contributing to maintaining a uniform style and preventing potential runtime problems. In case of errors considered blocking according to the project-defined rules, the job fails, preventing the integration of non-compliant code.
+
+\paragraph{Quality Gate}
+The \texttt{standard:qualitygate} stage statically analyzes the project through a set of rules that verify compliance with company standards. The system inspects Python files, YAML configurations, requirements, and deployment scripts, checking aspects such as proper debug configuration, presence of monitoring systems (\textit{Sensu} / \textit{Prometheus}), appropriate use of standard company libraries, APM (Application Performance Monitoring) configuration, and secure environment variable management. Each rule violation is reported with details about the file and the affected line, blocking the pipeline if critical errors are detected. This approach ensures that only code compliant with security and quality standards can be deployed to production, significantly reducing the risk of operational problems and vulnerabilities.
+
+\subsubsection{Security}
+\paragraph{Libraries}
+The \texttt{libraries:trivy} stage is focused on dependency analysis in order to identify known vulnerabilities in packages used by the project. Trivy is used, a tool specialized in scanning libraries and software components against updated CVE\footnote{CVE (Common Vulnerabilities and Exposures) are standardized identifiers assigned to publicly known cybersecurity vulnerabilities \cite{cve}. Each CVE entry provides a unique ID and a brief description of the flaw, enabling consistent referencing across security tools, research, and remediation processes \cite{cve}.} databases \cite{trivy}. The check result allows for timely identification of security risks related to versions affected by known bugs or flaws \cite{trivy}, thus contributing to maintaining an adequate security level and preventing the introduction of vulnerable dependencies in the release process.
+
+The \texttt{libraries:trivy-docker} stage, instead, focuses on searching for misconfigurations in deployment files, Dockerfiles, and Kubernetes manifests. Trivy executes a complete scan using a "\textit{comprehensive}" detection priority and generates a detailed report in JSON format \cite{trivy}, which is saved as an artifact to allow subsequent analysis. The scan also verifies dependency licenses and fails if critical unresolved vulnerabilities or significant misconfigurations are detected.
+
+These two stages provide essential feedback on the project's security posture, allowing the team to proactively identify and correct potential security problems before deployment to production.
+
+\paragraph{Static Application Security Testing (SAST)}
+This stage executes static source code analysis to identify security vulnerabilities and potentially dangerous code patterns. \textit{Semgrep} analyzes the code without executing it, detecting issues such as SQL injection, XSS, insecure credential management, and other OWASP vulnerabilities \cite{semgrep}. The stage generates a standardized report in JSON format that classifies vulnerabilities by severity (Critical, Medium, Info) and includes metadata such as commit SHA, branch, and project name. For main branches (quality, devel, master), the results are sent to a centralized project evaluation system for historical tracking. In this way, it is ensured that no code with known security problems can reach production environments.
+
+\subsection{Live Environment Branches}
+For live environments, namely those of devel, quality, and production, the CI/CD pipeline includes additional specific phases for building, testing, and deploying the application, as shown in figure \ref{fig:live-env-pipeline-workflow}, excluding the phases already covered for feat branches.
+ 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{images/ci-cd/live env pipeline.png}
+    \caption{Live Environment Branches pipeline workflow (ecluding already covered stages)}
+    \label{fig:live-env-pipeline-workflow}
+\end{figure}
+
+\subsubsection{Base Image Build}
+The \texttt{base:python} stage is responsible for building the project's base Docker image, containing all Python dependencies defined in the \texttt{requirements.txt} file.
+
+This stage implements an optimized build strategy through layer separation: the image is rebuilt only when changes are detected in the \texttt{requirements.txt} or \texttt{Dockerfile\_base} files, avoiding unnecessary rebuilds and significantly reducing pipeline execution times. The job is executed exclusively on main branches (devel, quality, master).
+
+This separation into three distinct Dockerfiles (\texttt{Dockerfile}, \texttt{Dockerfile\_base}, \texttt{Dockerfile\_ssl}) allows for intelligent use of Docker cache: if dependencies don't change, subsequent stages can reuse the existing base image, significantly speeding up the build process and reducing the load on CI/CD runners.
+
+\subsubsection{Test}
+The \texttt{test:pytest} stage is responsible for executing the project's automated test suite using PyTest and PostgreSQL as the reference database. The job configures an isolated test environment by starting a dedicated instance of PostgreSQL 16 as a containerized service, with credentials and connection parameters dynamically defined through environment variables. Test execution occurs only if the \texttt{requirements\_tests.txt} file is present and is adapted based on context: for devel and quality branches, the \texttt{devel-latest} and \texttt{quality-latest} Docker images are used respectively, while for merge requests the \texttt{production-latest} image is employed, thus ensuring that tests are executed in conditions as similar as possible to the target environment.
+
+The stage also implements rigorous control over code coverage: if the coverage percentage is less than 80\%, the pipeline automatically fails, ensuring that a minimum level of software quality and reliability is maintained through adequate test coverage. The stage is excluded from tags and the master branch to avoid redundant executions.
+
+This approach ensures that every code modification is validated against a real database before integration, reducing the risk of regressions and compatibility problems.
+
+\subsubsection{SSL Image Build}
+The \texttt{build:ssl-tags} stage is dedicated to building the intermediate Docker image containing SSL certificates and security configurations necessary for the project's encrypted communications. This stage is part of the multi-layer build strategy and is executed exclusively on quality and master branches, only if the \texttt{Dockerfile\_ssl} file is present. Similarly to the \texttt{base:python} stage, it implements a conditional rebuild system that reconstructs the image only when changes are detected in the \texttt{requirements.txt} or \texttt{Dockerfile\_ssl} files, optimizing pipeline execution times through Docker cache reuse.
+This separation of the SSL layer allows for independent management of security configurations and certificates, facilitating updates and maintenance of encryption-related aspects without having to rebuild the entire application image.
+
+\subsubsection{Release}
+The \texttt{commitizen-release} stage manages the automatic versioning process and project release creation using \textit{Commitizen}, a tool that analyzes commit history to automatically determine the version number according to Semantic Versioning\footnote{Semantic versioning is a versioning convention that adopts the MAJOR.MINOR.PATCH scheme, where the MAJOR number is incremented in case of changes incompatible with previous versions, the MINOR number following the introduction of compatible features, and the PATCH number for corrective interventions that do not alter existing functionalities.} and Conventional Commit\footnote{Conventional Commits is a convention for writing commit messages that uses a standardized structure composed of a modification type (feat, fix, chore, test, refactor, ...), an optional scope, and a description, in order to make change tracking, release note generation, and software versioning clearer and more automatable.} conventions. The \texttt{commitizen-release} stage operates on the master branch and, after configuring Git credentials and synchronizing the local repository with the remote one, executes an automatic version bump based on conventional commit messages (feat, fix, core, refactor, test, ...). The process automatically creates corresponding Git tags and pushes them to the repository with the \texttt{ci.skip} option to avoid recursive pipeline activation. The \texttt{commitizen-release-quality} stage works similarly but is dedicated to the quality branch and generates pre-release versions with "alpha" suffix, dynamically modifying the Commitizen configuration to adapt it to the test context. Both stages are executed only if the \texttt{.cz.yaml} configuration file is present and are excluded from merge requests, ensuring that versioning occurs exclusively on main branches after code integration.
+
+This automated approach eliminates the need to manually manage version numbers and ensures consistency and traceability in the software release process.
+
+\subsection{Tag Branches}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{images/ci-cd/tag pipeline.png}
+    \caption{Tag Branches pipeline workflow (ecluding already covered stages)}
+    \label{fig:tags-pipeline-workflow}
+\end{figure}
+
+\subsubsection{Project Build}
+The \texttt{build:project-tags} stage represents the final phase of the build process, responsible for building the final Docker image of the application ready for deployment. This stage is activated exclusively when a Git tag respecting the Semantic Versioning format (major.minor.patch) is created, ensuring that only formally released versions are containerized. The job uses the main \texttt{Dockerfile}, which assembles all previously built layers (base and SSL), adding the application code and final configurations. The stage implements conditional logic that prevents execution if a separate \texttt{Dockerfile\_base} exists, delegating in that case the build to more optimized flows that leverage multi-layer cache. The resulting image is tagged with the specific release version and published to the company Docker registry, constituting the definitive artifact ready to be deployed to production environments through subsequent pipeline stages.
+
+\subsubsection{Docs}
+The documentation stages automate the generation and publication of the project's technical documentation. The \texttt{docs:upload-changelog} stage is responsible for publishing the changelog on Techpedia, a company collaborative documentation platform, using the GraphQL API to automatically create or update changelog pages when a new release tag is created. The \texttt{openapi:generate} stages instead handle the generation of API documentation in OpenAPI/Swagger format, using the Django Spectacular framework to extract the specification from code annotations. These stages produce two versions of the documentation: a public one, containing only externally accessible endpoints, and a private one with complete documentation of all internal APIs. Generation occurs for each environment (production and quality) by connecting to the respective databases to ensure that the documentation accurately reflects the actual data structure. The generated OpenAPI schemas are saved as artifacts and can subsequently be used for automatic validation, SDK client generation, or publication on API documentation portals, ensuring that technical documentation is always synchronized with the code and accessible to developers and API consumers.
+
+\subsubsection{Deploy with ArgocD}
+The \texttt{deploy:argo-tags} and \texttt{deploy:argo-tags-quality} stages manage the automatic deployment of the application on Kubernetes environments through ArgoCD\footnote{ArgoCD is a GitOps tool for Kubernetes that automatically keeps the state of applications in the cluster synchronized with that declared on Git \cite{argocd}.}. The \texttt{deploy:argo-tags} stage is activated exclusively for stable release tags (major.minor.patch format) and performs deployment to the production environment, while \texttt{deploy:argo-tags-quality} handles pre-release versions (with alpha, beta, rc suffixes) by deploying them to the quality environment for integration testing and validation. Both stages use a specialized Docker image containing candymand, an internally developed wrapper tool that interacts with ArgoCD to automate the declarative deployment process. The tool receives as parameters the project namespace and the version to be deployed, then automatically updates the Git configurations of Kubernetes manifests, triggering the GitOps process managed by ArgoCD that synchronizes the desired state with the cluster. 
+
+This approach ensures fully traceable deployments, simplified rollbacks, and full adherence to Infrastructure as Code principles, eliminating manual interventions and reducing the risk of errors during release.
+
+\subsubsection{Notify Release}
+The \texttt{notify:new-relic} stage is responsible for automatically registering new application releases on the \textit{New Relic} Application Performance Monitoring platform, creating a deployment marker that facilitates correlation between software versions and performance metrics. The job is activated for any tag that respects the Semantic Versioning format and uses the New Relic GraphQL API to identify the correct application through its GUID, automatically distinguishing between the production and quality instance based on the presence or absence of pre-release suffixes in the tag. Once the monitored entity is identified, the stage creates a change tracking event that records the deployed version, allowing operators and development teams to visualize in New Relic dashboards when deployments occurred and to correlate any performance anomalies or errors with specific software versions. This automatic notification mechanism eliminates the need for manual deployment registration and provides complete visibility on the application lifecycle, supporting troubleshooting activities, regression analysis, and evaluation of release impact on system stability.
+
+\section{Implementation of the Deployment Architecture on Kubernetes}
+The SRM deployment architecture on Kubernetes is designed to ensure scalability, resilience, and separation of responsibilities through an organization based on distinct deployments, each optimized for specific system functions.
+
+As mentioned earlier, there are three separate live environments: \texttt{devel}, \texttt{quality}, and \texttt{production}. For each environment, a corresponding deploy file is defined. For simplicity, the production one (\texttt{production.yaml}) will be analyzed, knowing that the other files share exactly the same structure, except for the environment variables (which reflect their respective environments) and the resources, which for \texttt{devel} and \texttt{quality} are lower than their production counterparts, since those environments are used only internally and therefore need to handle exponentially lower workloads compared to the production environment.
+
+The high-level structure of deployment files is as follows:
+
+\begin{minted}[linenos,tabsize=2,breaklines]{yaml}
+namespace: servicerequestmanager
+serviceAccount:
+  create: TRUE
+deployments:
+  - name: static
+    ...
+  - name: backend
+    ...
+jobs:
+  - name: sync-srp-catalog
+    ...
+  - name: sync-srp-sr-history
+    ...
+  - name: import-directory-data
+    ...
+\end{minted}
+
+The system is isolated within the dedicated \texttt{servicerequestmanager} namespace, ensuring logical separation of resources and facilitating permission and network policy management. The configuration provides for the creation of a dedicated service account, which allows pods to interact with Kubernetes APIs according to the \textit{least privilege} principle, limiting permissions only to those strictly necessary for system operation.
+
+\subsection{Static Content Deployment}
+The \texttt{static} deployment manages the distribution of static content through a containerized Nginx web server, configured to serve frontend assets such as JavaScript bundles, CSS, images, and other static files. This deployment implements an optimized caching strategy that reduces the load on the backend and significantly improves response times for end users.
+
+\begin{minted}[linenos,tabsize=2,breaklines]{yaml}
+  - name: static
+    services:
+      - name: static
+        port: 80
+    ingresses:
+      - name: static
+        public: False
+        type: http
+        host: servicerequestmanager.k8s.elmec.ad
+        path: /static
+        port: 80
+    containers:
+      - name: nginx
+        image: docker.elmec.com/.../ssl:production-latest
+        port: 80
+      - name: nginx-mtr-exp
+        image: docker.elmec.com/.../nginx-prometheus-exporter:0.8.0
+        port: 9113
+        args:
+          - "-nginx.scrape-uri"
+          - "http://127.0.0.1:8080/nginx_status"
+    replicaCount: 1
+    monitoring:
+      - name: nginx-metrics
+        port: 9113
+    imagePullSecrets:
+      - name: docker-registry-secret
+\end{minted}
+
+\subsubsection{Container Configuration}
+The deployment consists of two containers running on the same pod.
+
+The main \texttt{nginx} container uses the \texttt{ssl:production-latest} image, which includes SSL/TLS configurations and certificates necessary for secure communications. The server is configured to listen on port 80 within the cluster, while external access occurs through the ingress system that manages SSL termination.
+In parallel, the \texttt{nginx-mtr-exp} container runs the \textit{Nginx Prometheus Exporter}, a specialized tool that exposes web server operational metrics in Prometheus-compatible format. This sidecar container connects to the \texttt{nginx\_status} endpoint exposed by Nginx on port \texttt{8080} and translates native statistics into Prometheus metrics accessible on port \texttt{9113}, allowing the monitoring system to collect data on throughput, latency, errors, and connection usage.
+
+\subsubsection{Service and Ingress Configuration}
+The \texttt{static} Kubernetes service exposes the deployment on port \texttt{80}, providing a stable access point independent of the lifecycle of underlying pods. The associated ingress is configured as internal (not public) and routes requests coming from the host \texttt{servicerequestmanager.k8s.elmec.ad} with path \texttt{/static} to the service, implementing virtual hosting that allows segregating static traffic from API traffic.
+
+\subsubsection{Monitoring Integration}
+The deployment natively integrates monitoring through the definition of a \textit{ServiceMonitor} that instructs Prometheus to scrape metrics exposed on port \texttt{9113}. This configuration allows automatic collection of operational telemetry without the need for additional manual configurations, ensuring continuous visibility on the state of the static content service.
+
+\subsection{Backend Application Deployment}
+The \texttt{backend} deployment constitutes the core of the architecture and manages the entire application logic through a multi-container organization that separates responsibilities between API server and asynchronous workers.
+
+\begin{minted}[linenos,tabsize=2,breaklines]{yaml}
+- name: backend
+  vault:
+    name: 'secrets'
+  services:
+    - name: api
+      port: 5000
+      mirror: TRUE
+    - name: api-ext
+      port: 5000
+      mirror: True
+  ingresses:
+    - name: api
+      public: False
+      type: http
+      host: servicerequestmanager.k8s.elmec.ad
+      path: /
+      port: 5000
+      middlewares:
+        - name: cors
+          spec:
+            headers:
+              accessControlAllowMethods:
+                - "GET"
+                - "OPTIONS"
+                - "POST"
+                - "PUT"
+                - "DELETE"
+                - "PATCH"
+              accessControlAllowOriginList:
+                - "*"
+              accessControlMaxAge: 100
+              accessControlAllowHeaders: ["*"]
+    - name: api-ext
+      public: True
+      type: http
+      host: api.elmec.com
+      path: /servicerequestmanager/
+      port: 5000
+      middlewares:
+        - name: strip
+          spec:
+            replacePathRegex:
+              regex: ^/servicerequestmanager/(.*)
+              replacement: /$1
+        - name: cors
+          spec:
+            headers:
+              accessControlAllowMethods:
+                - "GET"
+                - "OPTIONS"
+                - "POST"
+                - "PUT"
+                - "DELETE"
+                - "PATCH"
+              accessControlAllowOriginList:
+                - "*"
+              accessControlMaxAge: 100
+              accessControlAllowHeaders: [ "*" ]
+  containers:
+    - name: api
+      ...
+    - name: celery
+      ...
+  replicaCount: 2
+  monitoring:
+    labels:
+      port: "5000"
+      host: "localhost"
+    subscriptions:
+      - django
+    type: PodAndService
+    podmonitors:
+      - name: django-hc
+        port: api
+        path: /ht/
+        healthCheck: True
+  imagePullSecrets:
+    - name: docker-registry-secret
+\end{minted}
+
+\subsubsection{Vault Integration for Secrets Management}
+The deployment is configured to integrate \textit{HashiCorp Vault}\footnote{HashiCorp Vault is a system for securely managing secrets such as passwords, tokens, certificates, and API keys. It's used to centralize, encrypt, and dynamically deliver these secrets to pods, avoiding storing them in plaintext in YAML manifests or Kubernetes Secrets. It also enables secret rotation, temporary access with fine-grained control, and automatic secret injection into containers via sidecar or the CSI driver.\cite{vault}} through automatic injection of secrets into the pod filesystem. The \textit{Vault Agent injector} dynamically mounts secrets (database credentials, API keys, passwords) in the path \texttt{/vault/secrets/secrets}, making sensitive information available to containers without exposing them in environment variables or ConfigMaps. This approach implements the secrets management pattern according to Kubernetes security best practices, ensuring automatic credential rotation and complete audit trail of accesses.
+
+\subsubsection{API Container Configuration} \label{sec:api-container-config}
+The \texttt{api} container runs the Django application through the Gunicorn server, configured to handle HTTP requests on port 5000. The resource configuration implements a \textit{Burstable Quality of Service}\footnote{Burstable Quality of Service (QoS) is a resource classification applied to pods whose requested CPU/memory is lower than their limits. This means the pod is guaranteed at least its requested resources, but it's also allowed to “burst” up to its limits when the node has spare capacity. Burstable sits between Guaranteed (highest priority) and BestEffort (lowest priority) in terms of scheduling and eviction priority \cite{burstable_qos}.} model, with requests of 400m CPU and 1000Mi memory and limits of 800m CPU and 1200Mi memory respectively. This configuration allows the container to temporarily scale beyond requested resources during load peaks, while ensuring a minimum baseline guaranteed by the Kubernetes scheduler.
+
+\begin{minted}[linenos,tabsize=2,breaklines,breakanywhere]{yaml}
+containers:
+  - name: api
+    image: "docker.elmec.com/innovation/servicerequestmanager:PROJECT_VERSION"
+    port: 5000
+    cpuRequest: 400m
+    cpuLimit: 800m
+    memoryRequest: 1000Mi
+    memoryLimit: 1200Mi
+    envs:
+      - name: ENVIRONMENT
+        value: "PRODUCTION"
+      - name: DJANGO_DB_HOST
+        value: 'servicerequestmanager-db-production-pooler-rw.autom-servicerequestmanager-production.svc.cluster.local'
+      - name: DJANGO_DB_PORT
+        value: '5432'
+      ...
+\end{minted}
+
+Environment variables define the application's operational configuration, including PostgreSQL database connection parameters through the PgBouncer pooler, distributed caching configuration via Memcached, integration with Redis for Celery queue management, and external service endpoints for OIDC authentication and integrations with other company systems.
+The configuration also includes specific parameters for integration with the legacy SRP system, defining connections to the SQL Server database (\texttt{elmec-cmi-mssql.elmec.ad}) and synchronization dates for importing service request history. The S3-compatible storage system is configured through the \textit{Ceph RGW} endpoint (\texttt{rgw.elmec.com}) for script-execution log management and customers' master data import/export.
+
+\subsubsection{Celery Worker Container}
+
+\begin{minted}[linenos,tabsize=2,breaklines,breakanywhere]{yaml}
+- name: celery
+  image: "docker.elmec.com/innovation/servicerequestmanager:PROJECT_VERSION"
+  memoryLimit: 1200Mi
+  memoryRequest: 1000Mi
+  cpuRequest: 400m
+  cpuLimit: 800m
+  command: "/bin/sh"
+  args:
+    - -c
+    - . /vault/secrets/secrets;cd servicerequestmanager; celery -A servicerequestmanager worker --loglevel=info --pool threads
+  envs:
+    - name: CELERY_QUEUE
+      value: "servicerequestmanager_production"
+    - name: REDIS_HOST
+      value: "autom-servicerequestmanager-redis.autom-servicerequestmanager-production.svc.cluster.local"
+    ...
+\end{minted}
+The \texttt{celery} container runs Celery workers dedicated to asynchronous processing of background tasks related to the service request execution flow, using a thread pool to handle concurrent operations without blocking. The custom startup command initializes the environment by loading secrets from Vault before starting the worker with logging configured at INFO level.
+Workers are configured to consume from the dedicated \texttt{servicerequestmanager\_production} queue on Redis, ensuring isolation from other systems sharing the same messaging infrastructure. Resource allocation is identical to that of the API container, reflecting similar computational requirements.
+
+\subsubsection{Service Exposure and Load Balancing}
+The deployment exposes two distinct services to handle internal and external traffic.
+
+The \texttt{api} service operates internally to the cluster on port \texttt{5000}, configured with active mirror mode to allow traffic mirroring for testing or debugging purposes. The associated ingress is configured as internal and routes requests coming from the host \texttt{servicerequestmanager.k8s.elmec.ad} to the backend, implementing CORS middleware that permits cross-origin requests with complete HTTP methods (\texttt{GET}, \texttt{POST}, \texttt{PUT}, \texttt{DELETE}, \texttt{PATCH}) and arbitrary headers.
+
+The \texttt{api-ext} service instead provides public access through the host \texttt{api.elmec.com} with path prefix \texttt{/servicerequestmanager/}. The ingress configuration includes a path rewriting middleware that removes the prefix before forwarding requests to the backend, allowing the application to operate with simplified routing paths. This ingress also implements permissive CORS policies to support integrations from third-party web applications.
+
+\subsubsection{Availability and Scaling}
+The deployment is configured with \texttt{replicaCount: 2}, ensuring redundancy and load distribution across at least two pods distributed on different cluster nodes. This configuration implements basic high availability, allowing rolling updates without downtime and tolerance to single pod or node failures. The Kubernetes scheduler automatically distributes replicas across different nodes when possible, maximizing resilience.
+
+\subsubsection{Health Checking and Monitoring}
+The monitoring system is configured through PodMonitor that combines application metrics and health checks. The \texttt{django-hc} PodMonitor executes periodic checks on the \texttt{/ht/} endpoint of the API service, verifying that the application is responsive and correctly configured.
+
+The deployment is also tagged with django subscription that activates predefined dashboards and alerts for Django applications, providing immediate visibility on metrics such as request rate, latency distribution, error rate, and database connection pool utilization.
+
+\subsection{Scheduled Jobs}
+The architecture includes Kubernetes CronJobs for triggering Master Data export from clients' Domain Controllers and Exchange Servers, and for keeping data aligned between ServiceRequestManager and the legacy SRP system, so that the two systems can, at least initially, coexist and remain aligned during this period.
+The CronJobs share the same environment variables configuration and secrets injection as the backend deployment, ensuring consistency in access to databases and external services.
+
+Here is an example of the CronJob definition configuration:
+\begin{minted}[linenos,tabsize=2,breaklines,breakanywhere]{yaml}
+jobs:
+  - name: sync-srp-catalog
+    vault:
+      name: 'secrets'
+    schedule: "0 1 * * *"
+    image: docker.elmec.com/innovation/servicerequestmanager:PROJECT_VERSION
+    memoryLimit: 700Mi
+    memoryRequest: 400Mi
+    cpuRequest: 400m
+    cpuLimit: 800m
+    command: "manage.sh"
+    args:
+      - "sync_srp_catalog"
+    envs:
+      ...
+    imagePullSecrets:
+      - name: docker-registry-secret
+\end{minted}
+
+\subsubsection{SRP Catalog Synchronization}
+The \texttt{sync-srp-catalog} job is scheduled for daily execution at 1:00 AM through the cron expression \texttt{0 1 * * }\footnote{The \textit{cron} syntax is a compact format used to schedule periodic execution of processes or jobs in Unix-like systems \cite{cron}. It consists of five numeric fields separated by spaces (minute, hour, day of month, month, day of week) that indicate when a command should be executed. Each field can contain single values, ranges (e.g., 1-5), lists (e.g., 1,3,7), or special characters such as \texttt{*}, which means "any value", and \texttt{/}, which indicates a frequency (for example \texttt{*/5} for every five time units) \cite{cron}. A string like \texttt{0 2 * * *} therefore indicates the execution of a job every day at 02:00. This syntax, while minimal, allows for precise and flexible description of virtually any recurring scheduling need.}. This job executes the Django management command \texttt{sync\_srp\_catalog} which queries the SRP database to import catalog configurations. Execution is configured with more contained resources compared to permanent deployments (400Mi-700Mi memory, 400m-800m CPU), reflecting the batch nature of the workload that can tolerate higher latencies.
+
+
+\subsubsection{Service Request History Synchronization}
+
+The \texttt{sync-srp-sr-history} job is scheduled for execution at 2:00 AM, one hour after catalog synchronization to ensure that updated configurations are already available. This job executes the \texttt{sync\_srp\_service\_requests} command which imports the history of service requests created in the legacy system starting from the date defined in \texttt{SRP\_SR\_SYNC\_START\_DATE}, keeping the unified view of requests aligned across the two systems during the transition period.
+
+\subsubsection{Master Data Import}
+The \texttt{export-master-ata} job is responsible for periodically triggering the export of customers' master data from their Domain Controllers and Exchange Servers via an Ansible Playbook. Scheduled to run every day at 02:00 AM, this job executes the \texttt{import\_master\_data} management command.
+
+This execution model based on Kubernetes Jobs ensures automatic retries in case of failure and retention of execution history for debugging and auditing.
+
+\section{Backend Service Implementation}
+The backend service is the most critical component of the SRM architecture, responsible for managing application logic, processing service requests, and integrating with external systems. Its implementation was designed to ensure scalability, resilience, ease of maintenance, and a high degree of customization to accommodate the specific needs of clients.
+
+\subsection{Technological Overview}
+The following section provides an overview of the key technologies used in the implementation of the SRM backend.
+
+\subsubsection{Core Framework and API Layer}
+
+The backend service is built upon \textit{Django}, a high-level Python web framework that follows the Model-View-Template (MVT) architectural pattern, a variant of the traditional Model-View-Controller (MVC) pattern adapted to web development. In Django's MVT architecture, the \textit{Model} layer handles data structure and database interactions through an Object-Relational Mapping (ORM) system, the \textit{View} layer contains the business logic that processes requests and returns responses, and the \textit{Template} layer manages presentation logic. Django acts as the implicit controller, routing URLs to appropriate views and coordinating the overall request-response cycle \cite{django}.
+
+For RESTful API development, the framework is extended with \textit{Django REST Framework} (DRF), a powerful toolkit that transforms Django into a complete API platform. DRF introduces additional architectural components such as serializers for data validation and transformation between complex types and native Python datatypes, viewsets that combine the logic for handling multiple related views, routers for automatic URL routing, and a comprehensive authentication and permission system \cite{django_rest_framework}. The framework provides built-in support for content negotiation, pagination, filtering, and browsable API interfaces, significantly accelerating API development while maintaining consistency and best practices \cite{django_rest_framework}.
+
+Django's \textit{templates} are not used at all in this project, and therefore we can consider that the architecture effectively reduces to a classical MVC, where \cite{mvt_architecture}:
+\begin{itemize}
+  \item Model in MVC is the Django Model (Database/Business Logic).
+  \item Controller in MVC is the Django View (APIView or ViewSet).
+  \item View in MVC (Presentation) is handled by the Django Serializer / JSON Response (Data formatting and validation).
+\end{itemize}
+
+\paragraph{Technology Selection Rationale}
+
+The choice of Django and Django REST Framework as the core backend technology was driven by several strategic considerations specific to the ServiceRequestManager project requirements. The primary alternative evaluated was \textit{Go} with the \textit{GORM} library, which would have offered superior raw performance and lower resource consumption due to Go's compiled nature and efficient concurrency model. However, Django was ultimately selected for the following reasons:
+
+\begin{enumerate}
+\item \textbf{Rapid Development and Time-to-Market}: Django's philosophy provides a comprehensive ecosystem of built-in components including ORM, authentication, admin interface, and form handling \cite{django}. This significantly reduces development time compared to Go, where many of these functionalities would need to be implemented from scratch or integrated from third-party libraries. Given the project's requirement to replace the legacy SRP system within a defined timeline, development velocity was a critical factor.
+
+\item \textbf{ORM Capabilities and Database Abstraction}: Django's ORM offers a sophisticated abstraction layer that handles complex database operations, query optimization, and migrations with minimal boilerplate code. While GORM provides similar functionality \cite{gorm}, Django's ORM is more mature and includes advanced features such as automatic query optimization, \texttt{select\_related} and \texttt{prefetch\_related} for efficient eager loading, and a comprehensive migration framework. 
+
+\item \textbf{Admin Interface and Rapid Prototyping}: Django's automatically generated admin interface provided immediate value for system administrators to manage catalog configurations, user permissions, and service requests during development and early deployment phases. This eliminated the need to build custom administrative interfaces, which would have been necessary with a Go-based solution.
+
+\item \textbf{Ecosystem Maturity and Library Integration}: The Python ecosystem offers extensive libraries for integration with external systems, including robust support for LDAP authentication, message queuing (Celery), data serialization, and enterprise system integration. Many of the required integrations with legacy systems and third-party services had well-maintained Python libraries, reducing integration risk and development effort.
+
+\item \textbf{Asynchronous Task Processing Integration}: Django's native integration with Celery for asynchronous task processing aligned perfectly with the project's requirement for background execution of service requests and scheduled synchronization jobs. While Go's goroutines offer powerful concurrency primitives, implementing a comparable task queue system with persistence, retry logic, and monitoring would have required significant additional development.
+\end{enumerate}
+
+While Go would have provided performance advantages, particularly for high-throughput scenarios, the anticipated load characteristics of the ServiceRequestManager system (primarily CRUD operations on catalog configurations and orchestration of external service request executions) did not justify the trade-off against development velocity and ecosystem advantages offered by Django.
+
+\paragraph{Architectural Role}
+
+Within the SRM architecture, Django serves as the central orchestration layer that coordinates all backend operations and system interactions. The framework's role encompasses several critical responsibilities:
+
+\begin{itemize}
+  \item \textbf{API Gateway and Request Processing}: Through Django REST Framework, the backend exposes a comprehensive RESTful API that serves as the primary interface for the frontend application and external integrations \cite{django_rest_framework}. DRF viewsets handle incoming HTTP requests, perform authentication and authorization checks, validate input data through serializers, and coordinate business logic execution. The framework's middleware stack implements cross-cutting concerns such as CORS handling, request logging, and exception management \cite{django_rest_framework};
+  \item \textbf{Business Logic Orchestration}: Django views and service classes implement the core business logic for catalog management, service request lifecycle handling, and configuration validation. The framework coordinates interactions between different system components, such as triggering asynchronous task execution through Celery, managing database transactions, and interfacing with external systems through integration adapters;
+  \item \textbf{Data Persistence and Model Management} Django's ORM manages the complete data model \cite{django}, including catalog hierarchies, field configurations, service request instances, and audit trails. The framework handles database schema migrations \cite{django}, ensuring consistent evolution of the data model across \texttt{development}, \texttt{quality}, and \texttt{production} environments;
+  \item \textbf{Authentication and Authorization} Django's authentication system, extended with OIDC integration, manages user identity verification and session handling \cite{django}. The framework's permission system enforces role-based access control (RBAC) for API endpoints and data operations, ensuring that users can only access resources appropriate to their organizational roles;
+  \item \textbf{Configuration Management and Multi-Tenancy} The three-level configuration system (Field, Action, Customer) is implemented through Django models and custom manager classes that handle inheritance and override logic. The framework manages the complexity of determining effective configurations by traversing the hierarchy and applying precedence rules, abstracting this complexity from both the frontend and external consumers;
+  \item \textbf{Integration Hub} Django serves as the integration point for all external system interactions, including connections to the legacy SRP database for synchronization, LDAP servers for directory integration, S3-compatible storage for master data import / export, and message queue systems for asynchronous processing. The framework's modular architecture allows these integrations to be implemented as reusable components that can be tested and maintained independently.
+\end{itemize}
+
+This central architectural role makes Django the foundation upon which the entire ServiceRequestManager backend is built, coordinating the complex interactions required to deliver a scalable, maintainable, and feature-rich service request management platform.
+
+\subsubsection{Asynchronous Task Processing}
+The ServiceRequestManager architecture implements asynchronous task processing through \textit{Celery}, a distributed task queue system designed for handling time-consuming operations outside the request-response cycle of web applications \cite{celery}. 
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\textwidth]{images/implementation/celery-django-architecture.png}
+    \caption{Celery Architecture (source: \cite{celery_diagram})}
+    \label{fig:celery_architecture}
+\end{figure}
+
+Celery, as shown in Figure \ref{fig:celery_architecture}, operates on a \textit{producer-consumer} model where the Django application acts as a producer, publishing tasks to a message broker, while dedicated worker processes consume and execute these tasks asynchronously. This architectural pattern prevents blocking operations from impacting API response times and enables horizontal scalability of background processing capacity independently from the web server layer \cite{celery}\cite{celery_diagram}.
+
+\paragraph{Celery Architecture and Components}
+
+Celery's architecture consists of several key components that work together to provide reliable asynchronous execution. The \textit{task} represents a unit of work defined as a Python function decorated with Celery's task decorator (\texttt{@shared\_task}), which can be invoked asynchronously from anywhere in the Django application. When a task is called using the \texttt{.delay()} or \texttt{.apply\_async()} methods, Celery serializes the function name and arguments, then publishes this message to the broker \cite{celery}.
+
+The \textit{broker} acts as a message transport layer, receiving task messages from producers and delivering them to available workers. For the SRM system, \textit{Redis} was selected as the message broker due to its \textit{in-memory} architecture that provides low-latency message delivery, simple deployment and operational management, and native support for persistence through snapshots and append-only file (AOF) mechanisms. While \textit{RabbitMQ} represents a robust alternative with more sophisticated routing capabilities, guaranteed message delivery through acknowledgments, and better performance under high-throughput scenarios with complex routing requirements, Redis was deemed more appropriate for SRM's use case. The system's task patterns are relatively straightforward, consisting primarily of service request execution orchestration and periodic synchronization jobs, without requiring advanced routing or particular patterns.
+
+The \textit{worker} processes continuously monitor the broker for new tasks, deserialize incoming messages, and execute the corresponding functions. As shown in the deployment configuration, Celery workers in the SRM system are configured with a thread pool (\texttt{--pool threads}) to efficiently handle I/O-bound operations such as API calls to external systems, database queries, and remote script execution coordination. Workers can be scaled horizontally by increasing the number of pods in the Kubernetes deployment, providing elastic processing capacity that adapts to workload demands.
+
+Celery also includes a \textit{result backend} for storing task execution outcomes, enabling the application to query task status and retrieve return values. This proves essential for long-running service request executions where users need to monitor progress and retrieve final results asynchronously.
+
+\paragraph{Role in SRM Architecture}
+
+Within the ServiceRequestManager system, Celery fulfills several critical functions that enable the asynchronous execution model required by the service request workflow:
+
+\begin{itemize}
+  \item \textbf{Service Request Execution Orchestration}: When a service request is submitted through the API, Django immediately returns a response acknowledging receipt while delegating the actual execution to a Celery task. This task coordinates the multi-phase execution process described in Figure \ref{fig:sr-state-flowchart-simple}, rendering execution scripts with related parameters, invoking Ansible playbooks,  monitoring execution progress, collecting logs, and updating the service request status (and related ticket) in the database. This asynchronous pattern ensures that API endpoints remain responsive even when service requests take minutes or hours to complete.
+  \item \textbf{Scheduled Synchronization Operations}: The periodic jobs defined in the Kubernetes CronJobs (\texttt{sync-srp-catalog}, \texttt{sync-srp-sr-history}, \texttt{export-master-data}) are implemented as Celery tasks triggered by scheduled task execution. This approach provides consistent error handling, retry logic, and logging across both user-initiated and scheduled operations, leveraging Celery's built-in support for task retries with exponential backoff and comprehensive task lifecycle monitoring.
+  \item \textbf{Background Data Processing}: Operations such as bulk catalog imports, report generation, and data export to external systems are executed asynchronously through Celery tasks to avoid blocking interactive user operations. This maintains a responsive user experience while enabling resource-intensive batch processing.
+  \item \textbf{Distributed Processing and Fault Tolerance}: Celery's distributed architecture ensures that task execution continues even if individual worker pods fail or are restarted during Kubernetes rolling updates. Tasks in the queue are automatically redistributed to healthy workers, and failed tasks can be configured to retry automatically, providing resilience against transient failures in dependent systems.
+\end{itemize}
+
+The integration of Celery with Django and Redis creates a robust asynchronous processing pipeline that is essential for handling the complex, medium/long-running operations inherent in automated service request management while maintaining the responsiveness and reliability expected of enterprise systems.
+
+\subsubsection{Data Persistence and Caching}
+
+The SRM architecture implements a two-tier data access strategy combining \textit{PostgreSQL} for persistent storage and \textit{Memcached} for distributed caching, optimizing both data durability and system performance.
+
+\paragraph{PostgreSQL as Primary Data Store}
+
+PostgreSQL serves as the system's primary relational database, managing all persistent data including the complete catalog hierarchy (actions groups, categories, tyhpes, and global, client, and action configurations), field definitions and validation rules, customer master data registries (Domain Controllers and Exchange Servers), service request execution history with associated metadata and logs, user accounts and RBAC permissions, and synchronization state for legacy SRP system integration.
+
+The choice of PostgreSQL over alternative relational databases was driven by its advanced features particularly relevant to SRM requirements. PostgreSQL's robust transaction management with ACID guarantees ensures data consistency across complex operations involving multiple related entities, such as service request creation with cascading catalog validations and audit trail generation. The database's sophisticated query planner and support for partial indexes, expression indexes, and Common Table Expressions (CTEs) optimize performance for hierarchical catalog queries and configuration inheritance resolution.
+
+As shown in the deployment configuration in Figure \ref{fig:new-system-architecture} and in section \ref{sec:api-container-config}, the application connects to PostgreSQL through \textit{PgBouncer} (\texttt{servicerequestmanager-db-production-pooler-rw}), a \textit{connection pooler} that maintains a pool of persistent database connections, reducing connection overhead and enabling the application to handle connection spikes during peak loads without exhausting database connection limits. This architecture supports horizontal scaling of application pods while maintaining efficient database resource utilization.
+
+\paragraph{Memcached for External Service Caching}
+
+Memcached implements a distributed in-memory caching layer specifically targeting responses from external financial and administrative systems. These external services provide economic information required for service request processing, including active customer contracts with associated service levels and pricing, cost centers for departmental charge-back allocation, project codes for time and resource tracking, and general ledger account mappings for financial integration.
+
+External service calls typically exhibit high latency due to network round-trips and complex business logic execution in source systems, while the data they return has temporal stability (contracts and organizational structures change infrequently). Memcached addresses this performance bottleneck by caching service responses with configurable TTL (Time To Live) values (usually one or two days), reducing redundant external calls and significantly improving API response times for catalog configuration retrieval and service request execution workflows.
+
+Memcached's distributed architecture allows the cache to scale horizontally across multiple nodes, with consistent hashing ensuring efficient key distribution and lookup. The cache-aside pattern is implemented in Django service classes, which first query Memcached for cached data, invoke external services only on cache misses, and populate the cache with retrieved data for subsequent requests. This approach provides transparent caching without requiring modifications to external systems or introducing cache invalidation complexity for data managed outside SRM's control.
+
+The combination of PostgreSQL for durable, transactional storage and Memcached for ephemeral, high-performance caching creates a data access architecture that balances consistency requirements with performance optimization, supporting both the complex relational queries required by catalog management and the low-latency access patterns demanded by interactive user workflows.
+
+\subsubsection{Remote Execution}
+
+The actual execution of service requests on customer infrastructure is orchestrated through \textit{Ansible}, an agentless automation platform that provides idempotent, declarative configuration management and remote execution capabilities. Ansible was selected as the remote execution engine for its ability to manage heterogeneous Windows and Linux environments through a unified automation framework, eliminating the dependency on the legacy SRP Agent that previously required dedicated software installation and maintenance on customer systems.
+
+\paragraph{Ansible Architecture and Integration}
+
+Ansible operates on a push-based model where the control node establishes SSH or WinRM connections to target hosts (customer Domain Controllers and Exchange Servers) and executes tasks defined in YAML-based \textit{playbooks}. The platform's agentless architecture requires only standard remote management protocols on target systems, significantly reducing deployment complexity and security surface compared to agent-based solutions.
+
+For the SRM system, custom Ansible playbooks have been developed to encapsulate two primary categories of operations. The first category comprises service request execution playbooks that implement the automated provisioning workflows for user account creation, mailbox management, group membership modifications, and other directory service operations. Currently, these playbooks serve as wrappers that invoke existing PowerShell scripts developed by the Managed Systems team, providing a transitional architecture that maintains compatibility with established automation assets while introducing the Ansible orchestration layer. The playbooks are templated with Jinja2, receiving customer-specific parameters (domain names, organizational units, credential references) from the Django backend, then executed remotely through Ansible's \texttt{win\_shell} or \texttt{win\_powershell} modules.
+
+The second category encompasses master data export playbooks responsible for extracting directory information from customer Active Directory and Exchange environments. These playbooks execute periodic exports of user accounts, security groups, organizational units (OUs), password policies, and UPN suffixes from Active Directory, as well as mailbox databases and distribution groups from Exchange Server. The exported data is serialized to JSON format and stored in S3-compatible object storage (MINIO, covered in the next section), creating the master data repository that feeds service request parameter validation and auto-completion features in the frontend application.
+
+\paragraph{Execution Flow and Error Handling}
+
+When a service request is submitted, the Django API creates a database record and enqueues a Celery task that orchestrates the Ansible execution. The worker process retrieves customer-specific connection parameters (target hosts, credentials from Vault, domain configurations) from the database, renders the appropriate playbook with request parameters, and invokes Ansible through a dedicated company internal service (\textit{Provision Prime}). Execution output, including stdout, stderr, and structured result data, is captured in real-time and stored both in the PostgreSQL database for status tracking and in S3 for comprehensive audit trails and troubleshooting.
+
+Ansible's idempotent task design ensures that playbook execution can be safely retried in case of transient failures (network interruptions, temporary service unavailability) without causing duplicate operations or inconsistent state. The platform's built-in error handling and conditional execution logic enable sophisticated workflows that adapt to environment-specific conditions, such as detecting whether a user account already exists before attempting creation or validating group membership before modifications.
+
+\paragraph{Migration Strategy}
+
+The current hybrid architecture, where Ansible invokes legacy PowerShell scripts, represents a deliberate migration strategy that balances risk management with modernization objectives. This approach allows immediate elimination of the SRP Agent dependency while preserving proven automation logic accumulated over years of production operation. The long-term roadmap envisions complete migration to native Ansible modules (such as \texttt{win\_domain\_user}, \texttt{win\_domain\_group}, and community Exchange modules), which will provide superior error handling, better idempotency guarantees, and more granular control over directory service operations. The modular playbook structure facilitates this gradual transition, enabling incremental replacement of PowerShell-based tasks with Ansible-native implementations without disrupting production service request processing.
+
+This Ansible-based remote execution architecture provides a flexible, maintainable foundation for automated service delivery while establishing a clear path toward full infrastructure-as-code practices for customer environment management.
+
+\subsubsection{Object Storage}
+
+The SRM architecture leverages S3-compatible object storage for managing master data exports and execution artifacts, utilizing \textit{Ceph RGW} (RADOS Gateway) as the underlying storage infrastructure exposed through the MinIO S3-compatible API. This object storage layer serves as an intermediary persistence mechanism between the remote export operations on customer infrastructure and the relational database, implementing a pattern that optimizes both network efficiency and query performance.
+
+\paragraph{Storage Architecture and S3 Compatibility}
+
+Ceph RGW provides an S3-compatible RESTful interface that implements the standard Amazon S3 API, enabling the application to use standard S3 client libraries (specifically the \texttt{boto3} Python SDK) without vendor lock-in to a specific cloud provider (AWS). The storage system is accessed through a dedicated endpoint, with bucket organization segregating data by type and customer. Master data exports are stored in structured JSON format with hierarchical key naming schemes (e.g., \texttt{customers/\{client\_id\}/active\_directory/users.json}, \texttt{customers/\{client\_id\}/exchange/mailbox\_databases.json}) that facilitate efficient retrieval and versioning.
+
+Object storage was selected for master data management over direct database insertion for several architectural reasons. First, it decouples the export operation from database availability, allowing Ansible playbooks to complete successfully even during database maintenance windows or connection issues. Second, it provides a natural archival mechanism where historical exports can be retained with configurable lifecycle policies, supporting audit requirements and temporal queries. Third, it enables atomic updates of complete datasets, where the entire user registry or group listing can be replaced transactionally by uploading a new object, avoiding complex differential synchronization logic.
+
+\paragraph{Master Data Import Pipeline}
+
+The master data lifecycle follows a three-stage pipeline: export, storage, and import. During the export phase, Ansible playbooks execute queries against customer Active Directory and Exchange environments, serialize results to JSON, and upload the generated files to designated S3 buckets. These exports are scheduled to run periodically (as shown in the \texttt{export-master-data} CronJob executing weekdays at 02:00 AM), ensuring that the master data repository reflects recent organizational changes.
+
+The import phase is triggered either on-demand or through scheduled jobs that enumerate available exports in S3, download the JSON files, and populate corresponding database tables. This import operation parses the structured data and creates or updates records for users, groups, organizational units, and other directory entities in PostgreSQL. By materializing this data in the relational database, the system achieves two critical performance optimizations: frontend components can query master data through efficient database queries with filtering, pagination, and search capabilities, significantly reducing latency compared to on-demand LDAP queries or API calls to customer infrastructure; and backend validation logic can rapidly verify service request parameters (such as confirming that a specified user exists in the target domain or that a requested distribution group is available) without incurring the network and authentication overhead of real-time directory service queries.
+
+\paragraph{Execution Artifact Storage}
+
+Beyond master data, S3 storage also serves as the repository for service request execution logs and artifacts. When Ansible playbooks execute, detailed output including task results, timing information, and any error messages are captured and uploaded to S3 with keys associating them to specific service request instances. This approach provides durable, cost-effective storage for audit trails without inflating the relational database with large text payloads, while still maintaining the ability to retrieve and display execution logs on-demand through presigned URLs or direct object retrieval.
+
+The integration of S3-compatible object storage creates a scalable, resilient data pipeline that bridges the gap between distributed customer infrastructure and centralized SRM data management, enabling efficient master data synchronization while maintaining performance characteristics suitable for interactive user workflows.
+
+\subsection{General Project Structure}
+
+The ServiceRequestManager backend is implemented as a Python 3.13 project utilizing Django 5.2 and Django REST Framework 3.16, organized following Django's application-based architecture that promotes separation of concerns and modularity \cite{django}.
+
+\subsubsection{Django Application Organization}
+
+The project is decomposed into six specialized Django applications, each encapsulating a distinct domain of system functionality:
+
+\begin{itemize}
+\item \texttt{src/catalog/} manages all catalog-related logic, including Actions, Fields, customer configurations, validation regex patterns, API configurations, execution parameters, and script templates. This application implements the configuration hierarchy and provides the APIs for catalog CRUD operations.
+
+\item \texttt{src/integration/} handles integrations with external company systems such as HDA (ticketing), Economics (financial data), Atlantis (CMDB), and MySupport, as well as specialized integration endpoints for systems consuming SRM services outside the standard MyElmec/DeliveryHub workflow.
+
+\item \texttt{src/execution/} implements the complete service request execution lifecycle, including field validation, ticket creation, service request state management (creation, approval, suspension, execution, completion), and orchestration of Ansible playbook invocations.
+
+\item \texttt{src/monitoring/} provides health check implementations using Django Health Checks framework to verify catalog configuration consistency, service request state integrity, and synchronization status with external systems like HDA tickets.
+
+\item \texttt{src/directory\_data/} manages the master data import pipeline, handling the ingestion of directory information from S3 storage into the relational database and providing query interfaces for user, group, and organizational unit lookups.
+
+\item \texttt{src/common/} contains shared utilities, generic controllers, and reusable components leveraged across multiple applications, reducing code duplication and promoting consistency.
+\end{itemize}
+
+\subsubsection{Build and Deployment Artifacts}
+The \texttt{build/} directory contains the multi-layer Docker build configuration previously described, including \texttt{Dockerfile}, \texttt{Dockerfile\_ssl}, and \texttt{Dockerfile\_base}, along with production runtime scripts. The \texttt{run.sh} script orchestrates application startup by loading secrets from Vault, configuring SSL certificate trust, and launching the Gunicorn WSGI server with Eventlet worker class for async I/O support. The server is configured with 10 workers, 40-second timeout, and integration with New Relic APM for performance monitoring. The \texttt{manage.sh} script provides a wrapper for Django management commands, ensuring proper environment configuration and APM instrumentation during administrative operations and scheduled jobs.
+
+The \texttt{deploy/} directory contains the Kubernetes manifests (\texttt{devel.yaml}, \texttt{quality.yaml}, \texttt{production.yaml}) defining the complete deployment configuration for each environment, including deployments, services, ingresses, CronJobs, and resource specifications as detailed in the previous deployment architecture section.
+
+This organizational structure provides clear boundaries between functional domains, facilitates parallel development by different team members, and enables independent testing and evolution of each component while maintaining cohesive integration through well-defined interfaces.
+
+\subsection{Catalog Management}
+
+The catalog management subsystem represents the architectural core of ServiceRequestManager, implementing a three-level configuration hierarchy that enables high flexibility in defining and customizing actions configurations. 
+
+The catalog is composed of three principal entities that form the foundation of the system's automation capabilities: \textit{Customers}, representing organizations enabled to use SRM; \textit{Actions}, representing formal definitions of executable operations with complete configuration metadata; and \textit{Fields}, representing configurable input parameters that users populate when creating service requests.
+
+\subsubsection{Three-Level Configuration Architecture}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{images/implementation/ER SRM-Catalog Hierarchy.jpg}
+    \caption{ER Diagram of tghe Three-Level Catalog Configuration Hierarchy}
+    \label{fig:er_catalog_hierarchy}
+\end{figure}
+
+The catalog, as shown in detail in the ER Diagram in Figure \ref{fig:er_catalog_hierarchy}, implements a hierarchical override system organized across three distinct levels, each providing progressively more specific customization capabilities:
+
+\paragraph{Level 1: Global Definitions}
+The base level consists of global Action and Field definitions (\texttt{Action}, \texttt{Field}, \texttt{ActionField} models) that establish default configurations applicable across all customers. An Action at this level defines fundamental properties including execution scripts, approval requirements, target infrastructure (Domain Controller, Exchange Server, internal worker, ...), and associated fields. Fields define input validation rules, data types (text, select, file, checkbox, etc.), regex patterns, and dependency relationships with other fields. The \texttt{ActionField} association model links fields to actions while allowing action-specific overrides of field properties such as validation rules or display characteristics.
+
+\paragraph{Level 2: Customer-Level Action Customization}
+The \texttt{CustomerAction} model enables customer-specific modifications to action properties without duplicating the entire action definition. Through this mechanism, individual customers can override execution scripts to accommodate environment-specific requirements, modify approval workflows, alter execution target types, or adjust additional script parameter groups. This level maintains a clear separation between shared action logic and customer-specific variations, eliminating the configuration duplication that plagued the legacy SRP system.
+
+\paragraph{Level 3: Customer-Action-Specific Field Customization}
+The \texttt{CustomerActionField} model provides the finest granularity of customization, allowing modifications to individual field behavior for specific customer-action combinations. This enables four critical operations: modifying existing field properties (validation regex, mandatory status, dependencies) for a specific customer and action; adding fields not present in the default action definition; removing fields from an action by setting \texttt{hidden=True}; and overriding field characteristics already customized at the action level through \texttt{ActionField}.
+
+The configuration resolution follows a strict precedence hierarchy where \texttt{CustomerActionField} overrides \texttt{ActionField}, \texttt{ActionField} overrides \texttt{Field}, and \texttt{CustomerAction} overrides \texttt{Action}. This precedence is transparently applied by the retrieval methods, ensuring that the frontend receives the effective configuration without requiring awareness of the underlying hierarchy.
+
+\subsubsection{Service Block-Based Action Association}
+
+Action availability for customers is determined through a service block mechanism that replaces the granular one-to-one associations used in SRP. Each customer possesses a set of service blocks derived from contract information retrieved from the Economics system. Actions are associated with one or more service blocks, and a customer has access to all actions whose service blocks intersect with those in their possession. 
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.6\textwidth]{images/implementation/customer-sbs-sets.png}
+    \caption{Set representation of actions availability via Customer-Service Block-Action Associations}
+    \label{fig:customer-sbs-sets}
+\end{figure}
+
+This set-based association model, represented in Figure \ref{fig:customer-sbs-sets}, significantly reduces administrative overhead while providing flexible commercial packaging of service capabilities.
+
+The system also supports direct customer-action associations for edge cases where a customer requires a highly specialized action not appropriate for service block classification. These customer-specific actions are visible only to the designated customer and operate outside the service block framework. For backward compatibility during the transition from SRP, the system maintains support for legacy granular associations through the \texttt{use\_service\_blocks} query parameter on relevant API endpoints.
+
+\subsubsection{Field Type System and Validation}
+
+The catalog implements a comprehensive field type system with specialized validation and behavior for each type. Simple types include text, textarea, password, email, numeric, integer, telephone, datetime, and date fields, each with default validation regex patterns that can be overridden. Complex types include text lists (arrays of text values with configurable minimum and maximum cardinality), selects (single or multi-select dropdowns), UPN fields (composite logon@domain inputs), organization unit trees (hierarchical AD OU selection), and file uploads (with MIME type restrictions and file count limits).
+
+Select fields support three distinct option source policies: 
+\begin{itemize}
+  \item customer-specific options (e.g. domains, users, databases, Office 365 Licenses, etc...);
+  \item globally scoped options, independent of customer context (e.g., countries, languages, etc...);
+  \item options from external API calls configured through \texttt{ExternalAPIConfiguration} objects that specify endpoints, request parameters, and response mapping logic. 
+\end{itemize}
+
+The API configuration system supports Jinja2 templating in endpoint patterns, enabling dynamic URL construction based on customer IDRS or other field values.
+
+\subsubsection{Templating System for Dynamic Configuration}
+
+The catalog leverages Jinja2 templating throughout the configuration layer to enable dynamic behavior without code modifications. Field autofill templates define patterns for pre-populating input values based on other field values, supporting both simple variable substitution (e.g., \texttt{\{\{ first\_name \}\}.\{\{ last\_name \}\}}) and complex string manipulation through Jinja filters (e.g., \texttt{\{\{ first\_name[0]|upper \}\}\{\{ last\_name \}\}}). External API endpoint patterns incorporate templating to construct context-specific URLs (e.g., \texttt{/api/customers/\{\{ idrs \}\}/adusers?domain=\{\{ domain \}\}}), enabling reusable API configurations that adapt to different customers and field values.
+
+The templating context includes all field names from the associated action, the customer's IDRS identifier, and customer code, providing comprehensive access to contextual information for template rendering. This templating capability is utilized by both backend validation logic and frontend presentation layer, ensuring consistent behavior across the system.
+
+\subsubsection{Target Machine Strategy Pattern}\label{sec:target_machine_strategy_pattern}
+
+The determination of where service requests execute is abstracted through the Strategy pattern\footnote{The \textit{Strategy Design Pattern} is a behavioral pattern that enables selecting an algorithm's behavior at runtime by encapsulating each algorithm within a separate, interchangeable class. In this pattern, a \textbf{Context} object maintains a reference to a \textbf{Strategy} interface, which defines a common contract for all supported algorithms. \textbf{Concrete Strategy} classes implement this interface, providing distinct algorithmic behaviors. By delegating the execution to a chosen Strategy, the Context remains independent of specific algorithm implementations.} implemented in \texttt{ActionTargetTypes}. Each action specifies a \texttt{target\_type} enumeration value (Domain Controller, Exchange Server, Internal Worker, or SRP Agent) that maps to a concrete strategy class implementing \texttt{BaseActionTargetType}. Each strategy encapsulates the logic for identifying the source field that determines the target (if applicable), validating its presence in the action's field set, extracting its value from service request fields, and resolving the final target machine hostname or IP address.
+
+For example, the \texttt{DCFromDomainTargetType} strategy identifies the domain field, extracts the domain value from the service request, and resolves it to the corresponding Domain Controller FQDN\footnote{Fully Qualified Domain Name, e.g. "\texttt{dc01.elmec.ad}"}. This abstraction enables addition of new target types without modifying core execution logic, simply by implementing the strategy interface and adding the corresponding enumeration value.
+
+\subsubsection{Additional Script Parameters Strategy Pattern}
+
+Beyond form field values, actions can specify additional parameter groups to be injected into execution scripts through the \texttt{additional\_script\_parameters\_groups} array field. Available groups include Office 365 credentials, Domain Controller server derived from the domain field, and Exchange Server derived from the domain field. Each group is implemented as a strategy class inheriting from \texttt{BaseScriptParameterGroup}, which provides a \texttt{get\_parameters\_string} method that accepts a service request and returns the formatted parameter string to append to the script invocation.
+
+The \texttt{DCServerFromSRDomainScriptParametersGroup} strategy, for instance, extracts the domain value from the service request, resolves it to the DC hostname, and returns a formatted parameter string like \texttt{-Server dc01.elmec.ad}. Service request execution iterates through the configured parameter groups, invokes each strategy, and concatenates the resulting parameter strings, transparently extending the script invocation with context-specific values without requiring script template modifications.
+
+This catalog architecture achieves the primary objective of centralizing all configuration logic on the backend while providing administrators with powerful, intuitive customization capabilities that eliminate code modifications for common configuration scenarios. The three-level hierarchy, combined with the templating system and strategy patterns, delivers the flexibility required to support diverse customer requirements while maintaining a single, maintainable codebase.
+
+\subsection{Field Validation System}
+
+One of the most significant improvements in SRM over the legacy system is the implementation of comprehensive field validation that occurs before service request creation or modification. This validation layer ensures data integrity and provides immediate feedback to users, preventing invalid requests from entering the execution pipeline.
+
+\subsubsection{Validation Architecture}
+
+The validation logic is centralized in the \texttt{ServiceRequestValidationMixin} located in \texttt{src/execution/mixins/}, implementing a reusable component that multiple API endpoints leverage to ensure consistent validation behavior. This architectural decision eliminates code duplication across seven distinct endpoints that require field validation, including internal integration endpoints, standard CRUD operations, and dedicated validation endpoints.
+
+The validation system is organized into two complementary categories that operate at different granularities:
+
+\begin{itemize}
+  \item \textbf{Global Validators}: operate on the complete field set, verifying properties that emerge from field relationships rather than individual field characteristics. These validators receive lists of submitted fields and mandatory fields, checking for duplicate field submissions (where the same field appears multiple times in a single request) and mandatory field completeness (ensuring all required fields are present and populated). Global validators are defined in the \texttt{GLOBAL\_VALIDATORS} list:
+    \begin{minted}[breaklines,fontsize=\small,tabsize=2,breaklines]{python}
+GLOBAL_VALIDATORS = [
+  validate_duplicated_fields,
+  validate_mandatory_fields,
+]
+  \end{minted}
+  \item \textbf{Field Validators} examine individual field-value pairs, verifying syntactic correctness, semantic validity, and compliance with field configuration. These validators receive comprehensive context including the field definition, submitted value, action-level and customer-action-level field configurations, customer object, Jinja rendering context, and the set of available fields for dependency resolution. The \texttt{FIELD\_VALIDATORS} list defines the validation sequence:
+  \begin{minted}[breaklines,fontsize=\small,tabsize=2,breaklines]{python}
+FIELD_VALIDATORS = [
+  validate_field_availability,
+  validate_field_value_regex,
+  validate_field_value_type,
+  validate_date,
+  validate_field_value_rendered_options,
+  validate_field_value_fetched_options,
+  validate_adou_tree_value,
+  validate_field_value_api,
+]
+  \end{minted}
+\end{itemize}
+
+\subsubsection{Validation Execution Flow}
+
+Field validators implement a consistent interface signature that leverages Python's keyword argument unpacking to maintain flexibility while providing type safety for required parameters:
+
+\begin{minted}[breaklines,fontsize=\small,linenos,tabsize=1]{python}
+def validate_field_value_regex(
+    field: Field, value: str | None, **_kwargs
+) -> None:
+  if field.validation_regex and value:
+    if not re.fullmatch(field.validation_regex, value):
+      raise serializers.ValidationError({
+        "fields_validation": [
+          f"The value '{value}' does not match the required "
+          f"pattern for field '{field.description}': "
+          f"{field.validation_regex}"
+        ]
+      })
+\end{minted}
+
+The \texttt{**\_kwargs} parameter enables validators to declare only the parameters they require while ignoring additional context provided by the mixin. This pattern supports incremental addition of validation capabilities without requiring modifications to existing validators, maintaining backward compatibility as the validation framework evolves.
+
+\subsubsection{Multi-Layer Validation Logic}
+
+The validation system implements progressive verification that moves from structural checks to increasingly sophisticated semantic validations:
+
+\textbf{Syntactic Validation}: The \texttt{validate\_field\_value\_regex} validator applies the field's configured regex pattern using Python's \texttt{re.fullmatch}, ensuring the entire value conforms to the expected format. For fields with default regex patterns (email, UPN, telephone, date, datetime), this provides immediate format verification. The \texttt{validate\_field\_value\_type} validator performs type-specific checks, verifying that numeric fields contain parseable numbers, boolean fields contain valid boolean literals, and date fields contain ISO 8601-compliant values.
+
+\textbf{Configuration-Based Validation}: The \texttt{validate\_field\_availability} validator verifies that submitted fields are actually configured for the specific action-customer combination, preventing injection of arbitrary fields not present in the effective catalog configuration. The \texttt{validate\_mandatory\_fields} global validator ensures all required fields are present and non-empty, accounting for the three-level override hierarchy where mandatory status may be customized at action or customer-action levels.
+
+\textbf{Option Validation}: For select and UPN fields, the system validates that submitted values match available options through two distinct mechanisms. The \texttt{validate\_field\_value\_rendered\_options} validator handles fields whose options are determined through parameter lookups or templates, retrieving the effective option set and verifying membership. The \texttt{validate\_field\_value\_fetched\_options} validator manages fields with external API option sources, executing the configured API call with appropriate context (customer IDRS, dependent field values) and validating the submitted value against the returned option set.
+
+\textbf{Specialized Validation}: The \texttt{validate\_adou\_tree\_value} validator performs specific checks for Organization Unit fields, verifying that the selected OU exists in the customer's imported directory structure. The \texttt{validate\_field\_value\_api} validator supports fields with dedicated validation endpoints, executing HTTP requests to external validation services that implement domain-specific business rules beyond generic syntactic checks.
+
+\subsubsection{Error Aggregation and Reporting}
+
+The validation framework implements comprehensive error collection that continues validation even after detecting failures, accumulating all validation errors before returning a consolidated response. This approach provides superior user experience compared to fail-fast strategies, enabling users to correct multiple issues simultaneously rather than discovering errors incrementally through repeated submissions.
+
+When validators detect violations, they raise \texttt{serializers.ValidationError} exceptions with a standardized structure:
+
+\begin{minted}[breaklines,fontsize=\small]{python}
+{
+  "errors": {
+    "fields_validation": [
+      "The value 'invalid.domain' does not match the required pattern for field 'Domain': (?:[a-z0-9]...[a-z0-9]",
+      "The value 'invalid.domain' is not a valid option for field 'Domain' (id: 2872).",
+      "Value '2025-08-30-' for field 'Disable Date' (id: 2875) is not a valid ISO 8601 date."
+    ]
+  }
+}
+\end{minted}
+
+The mixin catches these exceptions, extracts error messages, and constructs a unified response that categorizes errors by validation type. This structured error format enables frontend applications to present validation failures in context, highlighting specific form fields with their associated error messages.
+
+This comprehensive validation architecture ensures that only syntactically and semantically valid service requests enter the execution pipeline, significantly reducing execution failures caused by invalid input data and providing immediate, actionable feedback to users during the request creation process.
+
+
+
+\subsection{Asynchronous Execution Flow}
+
+The service request execution workflow represents a fundamental architectural departure from the legacy SRP system, replacing the polling-based SSIS job mechanism with an event-driven asynchronous task orchestration model. In SRP, the creation flow involved MyElmec invoking MySupport to create a ticket, HDA invoking SRP to create the service request in NEW state, and scheduled SSIS jobs periodically scanning for new requests to initiate execution. The SRM architecture inverts this model: MyElmec directly invokes SRM for field validation and service request creation, SRM creates the HDA ticket and associates it with the request, and Celery tasks are immediately triggered to orchestrate the execution flow without polling delays.
+
+\subsubsection{Execution Trigger Endpoints}
+
+The execution flow is initiated through eight API endpoints in the \texttt{execution} app that validate state transitions and enqueue appropriate Celery tasks:
+
+\begin{itemize}
+\item \texttt{POST /api/customers/\{IDRS\}/service-requests/} creates a new service request and initiates the execution flow
+\item \texttt{PATCH /api/customers/\{IDRS\}/service-requests/} resumes execution for requests in NEW, ERROR, or SUSPENDED states by returning them to NEW
+\item \texttt{POST /api/customers/\{IDRS\}/service-requests/approve/} transitions requests from WAIT4APPROVAL to APPROVED
+\item \texttt{POST /api/customers/\{IDRS\}/service-requests/reject/} transitions requests to REJECTED state
+\item \texttt{POST /api/customers/\{IDRS\}/service-requests/suspend/} places requests in SUSPENDED state
+\item \texttt{POST /api/integration/provision/webhooks/execution-completed} receives execution completion callbacks from Provision Prime
+\item \texttt{POST /api/integration/customers/\{IDRS\}/service-requests/} provides integration endpoint for external systems
+\end{itemize}
+
+These endpoints are exclusively available for service requests with actions configured for SRM management (\texttt{target\_type} != SRP), ensuring that legacy requests continue routing through the SRP Agent until full migration is complete.
+
+\subsubsection{State Machine and Task Orchestration}
+
+The execution flow (described in higher level in Section \ref{sec:sr-exec-flow}) implements a state machine with seven distinct states (NEW, WAIT4APPROVAL, APPROVED, PENDING, EXECUTED, SUSPENDED, ERROR, REJECTED) coordinated through six specialized Celery tasks:
+
+\paragraph{manage\_new\_service\_request\_and\_ticket}
+This task handles newly created service requests in NEW state, implementing the initial routing decision based on approval requirements. If the action configuration specifies approval necessity, the task transitions the request to WAIT4APPROVAL state and updates the HDA ticket with a notification for the approval team. For requests that can execute automatically, the task performs a rapid state progression: NEW → APPROVED → PENDING, schedules the \texttt{check\_pending\_service\_request\_after\_2\_hours} task for monitoring, and immediately triggers execution through the Ansible playbook.
+
+\paragraph{manage\_approved\_service\_request}
+Invoked when a service request transitions to APPROVED state (through explicit operator action), this task verifies the current state, transitions to PENDING, schedules the 2-hour monitoring task, and initiates execution through the appropriate channel. This separation from the new request handler enables clean handling of approval workflow completion.
+
+\paragraph{manage\_rejected\_service\_request}
+Handles rejection workflow by verifying that the request is in REJECTED state and requires approval (preventing rejection of auto-executed requests), then closes the associated HDA ticket with the standardized solution text "The Service Request has been rejected by an operator."
+
+\paragraph{manage\_suspended\_service\_request}
+Processes suspension requests by adding a communication to the HDA ticket explaining that "The Service Request has been suspended because is incomplete, and therefore requires user intervention." This state enables partial completion scenarios where missing information or environmental issues require user action before execution can proceed.
+
+\paragraph{manage\_provision\_completed\_execution}
+Receives execution completion webhooks from Provision Prime containing execution status, logs, and result metadata. For failed executions, the task transitions the request from PENDING to ERROR and adds detailed failure information as an HDA ticket communication, enabling operators to diagnose issues. For successful executions, the task transitions to EXECUTED state and closes the HDA ticket with execution logs and completion timestamp, finalizing the service request lifecycle.
+
+\paragraph{check\_pending\_service\_request\_after\_2\_hours}
+Implements monitoring logic that verifies execution completion within expected timeframes. If a service request remains in PENDING state two hours after execution initiation, the task validates that the associated HDA ticket is assigned to the correct support group. If the ticket is in an incorrect group, the task reassigns it, ensuring that stalled executions receive appropriate attention from support teams.
+
+\paragraph{add\_ticket\_attachment}
+Handles asynchronous upload of file attachments from service request forms to HDA tickets, decoupling the file transfer operation from the request creation flow to maintain responsiveness for large file uploads.
+
+\subsubsection{Script Execution via Ansible}
+
+The actual execution of PowerShell scripts on customer Domain Controllers is orchestrated through Provision Prime, an internal automation platform that provides a RESTful API wrapper around Ansible playbook invocations. The SRM system interacts with Provision through the "Execute Service Request" provider associated with the \texttt{executeSR.yml} playbook, passing three parameters: \texttt{sr\_script\_parameters} containing formatted parameter string (e.g., \texttt{-IDRS "CUSTOMER" -Domain "customer.local"}), \texttt{sr\_script\_file\_name} specifying the PowerShell script name (e.g., \texttt{DismissUser.ps1}), and \texttt{idsr} identifying the service request for correlation.
+
+The Ansible playbook implements a five-phase execution pattern designed to maintain compatibility with existing PowerShell scripts while introducing infrastructure-as-code orchestration. The preparation phase creates necessary directories on the target Domain Controller. The file transfer phase copies support scripts and the specific service request script to the target machine using Ansible's \texttt{win\_copy} module. The execution phase invokes the PowerShell script through \texttt{win\_shell} with all configured parameters and logging redirection. The logging phase executes \texttt{LogReader.ps1} to retrieve structured log output for transmission back to SRM. The cleanup phase removes the temporary directory, ensuring no artifacts persist on customer infrastructure.
+
+This architecture achieves complete transparency for script developers, who continue writing standard PowerShell scripts without Ansible-specific modifications, while the orchestration layer provides centralized execution logging, error handling, and state management.
+
+\subsubsection{Resilient Ticket Operations}
+
+A critical challenge in the execution flow is managing HDA ticket operations when tickets are locked by operators actively working on them. The system implements exponential backoff retry logic: when a ticket operation fails due to locking, the task sleeps for 10 seconds and retries, attempting up to 5 times. If the ticket remains locked after all retries, the service request transitions to ERROR state and a communication is added to the ticket alerting operators to the automation failure. This resilience pattern prevents transient locking issues from causing permanent execution failures while maintaining visibility when persistent blocking occurs.
+
+The asynchronous execution architecture eliminates the polling delays inherent in the SRP SSIS job model, provides immediate state transition feedback, enables sophisticated retry and error handling logic, and maintains comprehensive execution audit trails through HDA ticket integration, representing a substantial improvement in both performance and operational visibility.
+ 
+\subsection{Customers' Master Data Import}
+
+The master data import subsystem implements a comprehensive pipeline for extracting directory information from customer Active Directory and Exchange environments, persisting it to object storage, and materializing it in the relational database to support rapid field validation and auto-completion in service request forms. This architecture eliminates the real-time LDAP query latency that would otherwise impact user experience while providing a consistent query interface regardless of customer infrastructure availability.
+
+\subsubsection{Scheduled Export Orchestration}
+
+The export process is triggered by a Django management command (\texttt{import\_master\_data}) executed via the Kubernetes CronJob \texttt{export-master-data} scheduled for weekday execution at 02:00 AM. The command implements a discovery and execution pattern that identifies all customers with configured Domain Controllers and orchestrates parallel export operations:
+
+\begin{minted}[breaklines,fontsize=\small]{python}
+enabled_customers: QuerySet[Customer] = (
+    Customer.objects.filter(
+        customerparameter__group="DOMINIO",
+        customerparameter__name__contains="_DOMINIO_DC",
+    )
+    .prefetch_related(
+        Prefetch(
+            "customerparameter_set",
+            queryset=CustomerParameter.objects.filter(
+                group="DOMINIO", name__contains="_DOMINIO_DC"
+            ),
+            to_attr="dc_parameters",
+        )
+    )
+    .distinct()
+)
+\end{minted}
+
+For each customer, the command iterates through their Domain Controller parameters, extracts the domain name from the DC FQDN, and constructs the Configuration Item (CI) name following the convention \texttt{\{IDRS\}\_\{DC\_HOSTNAME\}}. The command queries the internal NCFG (Network Configuration) system to validate that the DC is properly registered and retrieve its management hostname, filtering out invalid or decommissioned infrastructure. For validated DCs, the command invokes the Provision Prime API to execute the \texttt{ad\_master\_data\_export} playbook, passing the CI name and domain as parameters, and logs the returned execution UUID for tracking.
+
+\subsubsection{Ansible Export Playbook}
+
+The \texttt{ad\_master\_data\_export.yml} playbook implements a four-phase extraction and upload workflow that executes entirely on the target Domain Controller with delegation to localhost for storage operations:
+
+\paragraph{Phase 1: Data Extraction}
+The playbook executes five PowerShell queries using Ansible's \texttt{win\_shell} module to extract directory entities in JSON format. The \texttt{Get-ADUser} cmdlet retrieves all user accounts with DistinguishedName and SamAccountName properties; \texttt{Get-ADGroup} extracts security and distribution groups; \texttt{Get-ADOrganizationalUnit} enumerates the OU hierarchy; \texttt{Get-ADDefaultDomainPasswordPolicy} captures password complexity requirements; and a custom script aggregates UPN suffixes from both the forest configuration and the local domain. Each query pipes results through \texttt{Select-Object} to limit property sets, then \texttt{ConvertTo-Json -Compress} to generate compact JSON serialization stored in Ansible register variables.
+
+\paragraph{Phase 2: Local Serialization}
+Using \texttt{delegate\_to: localhost}, the playbook writes the JSON output from each query to temporary files in \texttt{/tmp/} with naming convention \texttt{\{domain\}\_ad\_\{type\}.json}. This delegation pattern avoids network transfer of raw PowerShell output, instead processing it on the control node where subsequent MinIO operations will execute.
+
+\paragraph{Phase 3: Object Storage Upload}
+The playbook leverages the internal \texttt{objstorage} Ansible role to upload each JSON file to Ceph RGW through the S3-compatible API. Files are organized in a hierarchical structure: \texttt{master\_data\_exports/\{idrs\}/ad/\{domain\}\_ad\_\{type\}.json}, enabling efficient per-customer and per-domain retrieval. The role receives S3 credentials (access key, secret key), endpoint URL (\texttt{rgw.elmec.com}), target bucket (\texttt{servicerequestmanager-qa}), and object key, executing PUT operations with empty permission arrays (indicating default bucket ACLs apply).
+
+\paragraph{Phase 4: Cleanup}
+The final task removes temporary JSON files from \texttt{/tmp/} using Ansible's \texttt{file} module with \texttt{state: absent}, preventing accumulation of sensitive data on the control node. The \texttt{ignore\_errors: yes} directive ensures cleanup failures don't mark the entire playbook execution as failed.
+
+\subsubsection{Import Processing Pipeline}
+
+The import phase is triggered through the \texttt{manage\_completed\_ad\_export} Celery task, which receives a customer ID and orchestrates retrieval and database materialization of exported data. The task instantiates an \texttt{S3Storage} client and lists all objects in the customer's export directory, filtering for JSON files:
+
+\begin{minted}[breaklines,fontsize=\small]{python}
+base_dir: str = f"master_data_exports/{idrs}/active-directory/"
+files: List[str] = minio.list_objects_in_directory(prefix=base_dir)
+
+for file_path in files:
+    if not file_path.endswith(".json"):
+        continue
+    
+    file_content = minio.read_object(object_name=file_path)
+    file_name = file_path.split("/")[-1]
+    domain = file_name.split("_", 1)[0]
+\end{minted}
+
+The task classifies each file by matching its path against \texttt{AdImportTypes} enumeration values (AD\_USER, AD\_GROUP, AD\_OU, AD\_UPN\_SUFFIX, AD\_PASSWORD\_POLICY), then invokes type-specific extraction functions that parse JSON content and construct typed data structures (\texttt{AdUserData}, \texttt{AdGroupData}, etc.) containing customer, domain, and entity-specific fields.
+
+After accumulating all typed data lists, the task invokes processing functions that implement sophisticated differential synchronization logic using Django's bulk operations for efficiency. The \texttt{process\_users\_for\_customer} function exemplifies this pattern:
+
+\begin{minted}[breaklines,fontsize=\small]{python}
+logon_names_from_file: set[(str, str)] = set(
+    (ud["domain"], ud["logon_name"]) for ud in user_data_list
+)
+
+existing_users: Dict[tuple, AdUser] = {
+    (user.domain, user.logon_name): user
+    for user in all_existing_users.select_for_update()
+}
+
+users_to_create: List[AdUser] = []
+users_to_update: List[AdUser] = []
+users_to_delete: List[AdUser] = []
+\end{minted}
+
+The function constructs sets of (domain, logon\_name) tuples from both the imported data and existing database records, then performs set operations to determine three distinct lists: users present in the import but not in the database (to create), users present in both with changed attributes (to update), and users present in the database but absent from the import (to delete). This differential approach avoids unnecessary database operations, updating only records with actual changes detected through field-by-field comparison of distinguished\_name, display\_name, and logon\_name attributes.
+
+Bulk operations execute with batches of 1000 records: \texttt{bulk\_create} for insertions, \texttt{bulk\_update} specifying only changed fields, and filtered \texttt{delete} for removals. The entire process occurs within a \texttt{@transaction.atomic} decorator, ensuring that either all changes commit successfully or the database state remains unchanged in case of errors. Similar differential processing occurs for groups, OUs, UPN suffixes, and password policies, maintaining synchronization between customer infrastructure and the materialized database representation.
+
+The task concludes by invoking \texttt{reset\_sequences} to ensure PostgreSQL auto-increment sequences align with the current maximum primary key values, preventing insertion conflicts in subsequent operations.
+
+\subsubsection{Query Interface and Validation Integration}
+
+The materialized master data is exposed through Django model managers that provide filtering and search capabilities used by both validation logic and frontend autocomplete features. When validating a service request field configured with AD user options, the validation mixin queries the \texttt{AdUser} model filtered by customer and domain extracted from dependent fields, verifying that the submitted username exists in the imported dataset. Similarly, UPN suffix validation queries the \texttt{AdUPNSuffix} model to ensure the domain portion of submitted UPNs matches registered suffixes.
+
+Frontend select fields configured with AD option sources invoke API endpoints that execute identical queries, returning JSON-serialized entity lists for population of dropdowns and type-ahead search interfaces. This shared query layer ensures validation and presentation logic operate on consistent data sources.
+
+The master data import architecture achieves several critical objectives: it decouples service request creation from customer infrastructure availability, eliminating timeout and authentication issues inherent in real-time LDAP queries; it provides sub-second query response times through indexed database access compared to multi-second LDAP query latencies; it enables comprehensive audit trails by persisting historical exports in S3 with retention policies; and it maintains data freshness through nightly scheduled exports while avoiding the operational complexity of real-time synchronization.
+
+
+\subsection{Logging and Monitoring}
+
+The SRM system implements comprehensive observability through a multi-layered monitoring architecture that combines application performance monitoring, structured logging, health checks, and alerting, providing visibility into both operational metrics and business-level indicators.
+
+\subsubsection{Application Performance Monitoring with New Relic}
+
+New Relic APM provides continuous monitoring of application performance, transaction traces, error rates, and resource utilization across all SRM components. The integration is configured through the \texttt{newrelic-admin} wrapper in the production runtime scripts, which instruments the Gunicorn process and Celery workers to capture detailed telemetry without code modifications. The \texttt{run.sh} script sets the environment-specific New Relic configuration before launching the application server:
+
+\begin{minted}[breaklines,fontsize=\small]{bash}
+export NEW_RELIC_ENVIRONMENT="$ENVIRONMENT"
+newrelic-admin run-program python3 -m gunicorn -k eventlet \
+  --worker-tmp-dir /dev/shm --bind 0.0.0.0:5000 \
+  -w 10 -t 40 --chdir "$PROJECTHOME" "$WSGIAPP"
+\end{minted}
+
+This instrumentation captures web transaction performance (request latency, throughput, error rates), database query performance with SQL statement profiling, external service call durations (HDA, Economics, Provision Prime integrations), and Celery task execution metrics. The APM dashboard enables rapid identification of performance bottlenecks, unusual error patterns, and resource saturation conditions.
+
+\subsubsection{Structured Logging Infrastructure}
+
+Application logging leverages an internal company library that wraps Loguru to provide structured logging with automatic integration to New Relic Logs. The library implements contextual log enrichment, adding metadata such as request IDs, user identifiers, customer IDRS, and service request IDs to all log entries, enabling correlation between log events and APM transactions.
+
+For scheduled jobs and Celery tasks, the \texttt{@monitor\_job} decorator provides comprehensive execution monitoring by wrapping Django management command \texttt{handle} methods and task functions:
+
+\begin{minted}[breaklines,fontsize=\small]{python}
+@monitor_job
+def handle(self, *args, **kwargs):
+    provision: ProvisionController = ProvisionController()
+    # job implementation
+\end{minted}
+
+The decorator implements several monitoring capabilities: it registers the job with New Relic as a background transaction, enabling visibility in the APM interface; captures and logs execution start time, end time, and duration; handles exceptions by catching them, extracting full tracebacks, and sending \texttt{JobException} custom events to New Relic with error type, message, and stack trace; and sends \texttt{JobCompleted} custom events with execution metadata including job name, server hostname, completion status, and duration.
+
+This structured event stream enables creation of New Relic dashboards that visualize job execution patterns, failure rates, and duration trends over time, facilitating capacity planning and anomaly detection for scheduled operations like master data imports and SRP synchronization.
+
+\subsubsection{Health Check Framework}
+
+The system implements a comprehensive health check framework using Django Health Check, exposed through the \texttt{/ht/} endpoint that is monitored every minute by the internal Prometheus-based\footnote{Prometheus is an open-source monitoring system designed for collecting, storing, and querying metrics from applications and infrastructure. It pulls metrics over HTTP, stores them in a time-series database, and lets you analyze them with its query language (PromQL). It's commonly used with Grafana for visualization.} monitoring infrastructure. Failed health checks automatically trigger alerts in OpsGenie\footnote{OpsGenie is an incident-management and alerting platform that receives alerts from your monitoring tools, filters and routes them to the right people, and manages on-call schedules. It helps teams respond faster to outages by providing escalation rules, notifications, and incident tracking.}, ensuring immediate visibility of operational issues.
+
+The health check suite includes both standard infrastructure checks and application-specific business logic validations. Standard checks include: \texttt{DatabaseBackend} verifying PostgreSQL connectivity and query execution; \texttt{Cache backend: default} validating Memcached availability and operation; \texttt{DefaultFileStorageHealthCheck} confirming S3/Ceph RGW accessibility; \texttt{MigrationsHealthCheck} ensuring all Django migrations have been applied; and \texttt{PrometheusChecker} validating metrics exposure for scraping.
+
+Two custom health checks implement SRM-specific monitoring logic:
+
+\paragraph{PendingServiceRequestsCheck}
+This check validates that service requests in PENDING state for more than two hours have their associated HDA tickets assigned to the correct support group. The check queries for service requests matching these criteria, retrieves their ticket information from HDA, and validates that the ticket group matches expectations. Failure of this check indicates stalled executions that require operator intervention, enabling proactive identification of blocked workflows before customer escalation.
+
+\paragraph{UniqueActionFieldsCheck}
+This check verifies catalog configuration integrity by ensuring that no action for any customer has duplicate field names, accounting for the three-level configuration hierarchy. The check iterates through all active customers and their accessible actions, retrieves the effective field set by applying action-level and customer-action-level overrides, and validates that field names are unique within each action. Detection of duplicates indicates configuration errors that would cause ambiguous field references in service request creation and script parameter generation, potentially causing execution failures. This proactive validation catches configuration issues immediately upon deployment rather than discovering them during production service request processing.
+
+\subsubsection{Kubernetes Pod Monitoring}
+
+The deployment configuration defines \texttt{PodMonitor} resources that enable Prometheus to scrape application-specific metrics from the backend pods. The \texttt{django-hc} PodMonitor executes periodic HTTP requests to the \texttt{/ht/} health check endpoint, verifying application responsiveness and recording availability metrics. The monitoring configuration also includes the \texttt{django} subscription label, which activates predefined Grafana dashboards and alert rules for Django applications, providing visibility into request rates, response time distributions, error rates, and database connection pool utilization.
+
+The \texttt{nginx-mtr-exp} sidecar container in the static deployment exposes Nginx operational metrics (active connections, requests per second, response codes) on port 9113, scraped by the \texttt{nginx-metrics} ServiceMonitor. This telemetry enables monitoring of static asset delivery performance and identification of frontend traffic patterns.
+
+This comprehensive monitoring architecture provides multiple layers of observability, from infrastructure health through application performance to business logic correctness, enabling rapid detection and diagnosis of issues across all system components. The integration of health checks with automated alerting ensures that operational problems surface immediately, while APM and structured logging provide the diagnostic context required for efficient root cause analysis and remediation.
+
+
+\section{Frontend Application Implementation}
+
+The SRM frontend architecture implements two distinct user interfaces targeting different audiences and operational requirements: an end-user service request creation platform integrated into the customer-facing MyElmec portal, and an administrative configuration platform designed for system administrators to manage the catalog hierarchy.
+
+\subsection{Technological Overview}
+
+The frontend applications are built using Vue.js 3, leveraging the Composition API for improved code organization and type safety through TypeScript integration \cite{vue3}. Vue 3's reactivity system provides efficient DOM updates and component rendering \cite{vue3}, critical for handling the dynamic field configurations that characterize SRM's flexible catalog model.
+
+State management is implemented through Pinia, Vue's official state management library that replaces the legacy Vuex architecture \cite{pinia}. Pinia provides a simpler, more intuitive API with full TypeScript support and DevTools integration \cite{pinia}, enabling centralized management of application state including user authentication, customer context (IDRS, codicli, email, ...), form data, and cached external options. The store architecture implements modules for catalog data, service request state, and API configuration, ensuring clear separation of concerns and facilitating testing and maintenance.
+
+The component architecture leverages a custom design system library (ElmecUIX) that provides reusable UI components (inputs, selects, buttons, date pickers, file uploads) with consistent styling and behavior across light and dark themes. This design system ensures visual coherence across all company applications while providing accessibility features and responsive design patterns.
+
+\subsection{Service Request Creation Platform for End Users}
+
+The service request creation interface is integrated into MyElmec, the customer-facing portal where clients manage support tickets, view contract information, and access company services. The SRM integration provides a dynamic form builder that renders service request creation forms based on the effective catalog configuration retrieved from the backend API.
+
+\subsubsection{Dynamic Form Rendering Architecture}
+
+The form rendering logic implements a sophisticated field resolution system that handles the three-level configuration hierarchy transparently. When a user navigates to create a service request for a specific action, the frontend executes a GET request to \texttt{/api/catalog/customers/\{IDRS\}/actions/\{actionId\}/}, receiving a complete action definition including resolved field configurations, validation rules, dependencies, and external API configurations. This single API call returns the effective configuration with all customer-specific and action-specific overrides already applied, eliminating the need for frontend configuration resolution logic.
+
+The component architecture separates concerns through a parent \texttt{NewServiceRequest.vue} component that manages overall form state and submission logic, and a specialized \texttt{ServiceRequestField.vue} component that renders individual fields based on their type. The parent component maintains a reactive \texttt{formData} object containing all field values, a \texttt{fieldNamesToIds} mapping for backend submission, and state tracking for edited fields, external options, and loading states.
+
+\subsubsection{Field Type Implementations}
+
+The \texttt{ServiceRequestField} component implements rendering logic for 14 distinct field types, each with type-specific behavior:
+
+\textbf{Text and textarea fields} render standard input components with optional autofill template support. When an autofill template is defined, the field watches dependent field values and automatically populates using Jinja template rendering through the Nunjucks library. Users can manually edit autofilled values, which marks the field as edited and disables automatic updates until explicitly reset via a restore button.
+
+\textbf{Text list fields} implement dynamic array inputs where users can add or remove list items up to configured minimum and maximum cardinality constraints. Each list item is stored in a separate reactive property (\texttt{fieldName\_0}, \texttt{fieldName\_1}, etc.), then concatenated with comma separators for backend submission. This approach provides intuitive UI for multi-value inputs like IP address lists while maintaining backward compatibility with comma-separated string validation.
+
+\textbf{Select fields} implement three distinct data source patterns. Fields with pre-rendered options (from customer or global parameters) receive the complete option set in the initial API response and render a filterable dropdown. Fields with external API option sources trigger asynchronous option loading when dependent fields are populated, displaying loading indicators during fetch operations and error states with retry capabilities on failure. Searchable select fields implement remote filtering, executing API queries as users type and debouncing requests to reduce backend load.
+
+\textbf{UPN fields} render as composite inputs with a text field for the username portion, an "@" separator, and a select dropdown for the domain suffix. The prefix field supports autofill templates (commonly \texttt{\{\{ first\_name \}\}.\{\{ last\_name \}\}}), while the suffix options are loaded from the configured external API. The composite value is assembled on form submission as \texttt{prefix@suffix}.
+
+\textbf{Password fields} render dual inputs with show/hide toggle buttons, implementing client-side validation that ensures the confirmation field matches the original value. Both values are transmitted to the backend, where additional complexity validation occurs according to the configured regex pattern.
+
+\textbf{File fields} leverage an internal component to handle file selection with MIME type filtering and multiple file support. Selected files are converted to Base64-encoded JSON objects containing the file data and filename, then stored in the form data object for submission. This approach avoids multipart/form-data complexity while enabling straightforward serialization in the backend.
+
+\textbf{AD OU Tree fields} render a specialized tree picker component that retrieves the customer's imported organizational unit hierarchy and displays it as an interactive tree structure. Users navigate the tree to select the target OU, with the distinguished name stored as the field value.
+
+\subsubsection{Dependency Management and Field Enabling}
+
+The form implements sophisticated field dependency resolution through reactive watchers that monitor formData changes and evaluate dependency conditions. Fields specify \texttt{depends\_on} arrays containing names of prerequisite fields that must be populated before the dependent field becomes enabled. The \texttt{isDisabled} computed function checks whether any dependency fields are empty or null, disabling the field and preventing option loading or user input until dependencies are satisfied.
+
+When a dependency field value changes, the form resets any dependent field values, clears their cached external options, and triggers re-fetching if the new dependency values enable the field. This ensures that option lists and validation rules adapt to context changes, such as reloading available users when the selected domain changes.
+
+\subsubsection{Validation and Submission Flow}
+
+Client-side validation is implemented through Element Plus form validation rules dynamically generated from the action field configurations. The \texttt{formRules} computed property constructs validation rule objects for each field, including required field checks for mandatory fields, regex validation using the configured patterns and error messages, and custom validators for password confirmation matching.
+
+For text list fields, validation iterates through each comma-separated item, applying the field regex to individual values and constructing error messages that identify which specific item failed validation. This provides precise feedback for array inputs while maintaining consistent validation logic.
+
+Upon form submission, the \texttt{handleSubmit} function executes Element Plus form validation, collecting all field errors before proceeding. If validation passes, the function constructs a request payload containing action\_id and arrays of field\_id/value pairs for action fields, HDA external fields, and HDA classification fields. The payload is transmitted via POST to \texttt{/api/customers/\{IDRS\}/service-requests/}, with the backend performing additional server-side validation before creating the service request and associated HDA ticket.
+
+The submission process implements three states: loading (during API call), success (displaying ticket reference with navigation options), and error (showing aggregated error messages from backend field validation). This state management provides clear user feedback throughout the submission lifecycle.
+
+\subsubsection{External Options Caching and API Optimization}
+
+The form implements intelligent caching of external API option responses to minimize redundant backend calls. The \texttt{calledUrls} ref maintains a Set of previously fetched URLs, preventing re-execution of identical queries within the same form session. Option data is stored in the \texttt{externalOptions} reactive object keyed by API configuration name, enabling sharing of option sets across multiple fields that use the same external API configuration.
+
+For searchable fields with remote filtering, the caching strategy allows repeated queries with different search terms while caching results for each unique URL. The \texttt{remoteMethod} function debounces user input, triggering API calls only after typing pauses, then updates the local option set without overwriting cached results from previous searches.
+
+\subsection{Administrative Configuration Platform for System Administrators}
+
+The administrative interface for catalog configuration management is currently in the design phase with the internal UX team, with planned integration into DeliveryHub, the company's internal operations portal. The platform will provide CRUD interfaces for managing Actions, Fields, ActionField associations, CustomerActions, and CustomerActionFields, implementing the same three-level configuration hierarchy exposed by the backend API.
+
+The administrative interface will implement form-based editors for field properties including validation regex patterns, autofill templates, external API configurations, and dependency definitions. Visual representation of the catalog hierarchy will enable administrators to understand override relationships and identify configuration conflicts, such as duplicate field names within an action scope.
+
+Preview functionality will allow administrators to render test forms showing how end users will experience configured actions, enabling validation of field behavior, dependency logic, and autofill templates before deployment to production. Integration with the backend validation endpoints will provide real-time feedback on configuration correctness, ensuring that catalog modifications maintain system integrity.
+
+The frontend architecture achieves the critical design objective of providing dynamic, configuration-driven user interfaces that adapt to catalog changes without requiring code modifications or redeployment. The separation of configuration from presentation logic enables rapid iteration on service request workflows, supporting the business agility required for managed service operations.
+
