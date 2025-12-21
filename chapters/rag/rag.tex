@@ -1,8 +1,50 @@
-\chapter{Recommendation system through LLM and Retrieval Augmented Generation}
+\chapter{Recommendation System through LLM and Retrieval Augmented Generation}
+
+The ServiceRequestManager catalog, while providing comprehensive coverage of available service request types through its three-level configuration hierarchy, presents end users with a potentially overwhelming interface containing hundreds of distinct actions organized across multiple categories and groups. Traditional hierarchical navigation requires users to understand the organizational taxonomy of IT services, navigate through nested category structures, and select from long lists of similarly-named actions, a process that introduces friction in the user experience and may result in suboptimal action selection or abandonment of the request creation workflow.
+
+This chapter presents the design and implementation of an intelligent recommendation system that leverages Large Language Models (LLMs) and Retrieval Augmented Generation (RAG) to enable natural language-based action discovery. The system accepts free-form textual descriptions of user intent (e.g., "I need to reset the password for a user account") and automatically identifies the most relevant catalog actions, providing ranked recommendations with confidence scores and explanatory reasoning that enables users to validate the system's suggestions before proceeding to request creation.
+
 \section{Motivation and Problem Statement}
+
+The development of a recommendation system for SRM addresses several fundamental challenges inherent in enterprise service request management, where the complexity of service catalogs and the diversity of user technical expertise create barriers to efficient self-service.
+
 \subsection{Limitations of Traditional Catalog Navigation}
+
+The SRM catalog exposes over 300 distinct actions organized hierarchically through action types (System, Network, Personal), categories (Active Directory, Exchange, Office 365), and groups (User Management, Group Management, Mailbox Management). While this organizational structure provides logical grouping for administrative purposes and supports scalable catalog management, it presents several usability challenges for end users:
+
+\textbf{Cognitive Load of Taxonomy Navigation:} Users must understand the IT service taxonomy to locate relevant actions. A user seeking to create a mailbox must first recognize that this falls under the "Personal" type, then navigate to the "Exchange" category, and finally locate the "Mailbox Management" group. This multi-level navigation assumes familiarity with IT organizational structures that many business users lack, particularly in heterogeneous environments where similar services may be organized differently across customers.
+
+\textbf{Ambiguity in Action Descriptions:} Many actions have similar or overlapping descriptions that are distinguishable only through careful reading of extended descriptions or examination of required fields. For example, "Create User Account," "Create User with Mailbox," and "Create User with Office 365 License" represent distinct actions with different provisioning workflows, but their descriptions may appear similar during rapid scanning. Users unfamiliar with the technical distinctions between these options may select suboptimal actions, leading to subsequent corrections or additional requests.
+
+\textbf{Discovery of Relevant Actions:} The hierarchical organization assumes users know which category contains the service they need. In reality, users often describe needs in business terms ("I need the new employee to access email") rather than technical terms ("Create Exchange mailbox"), making it difficult to identify the appropriate category. The lack of cross-category search capabilities exacerbates this issue, as users must exhaustively browse multiple categories to locate relevant actions.
+
+\textbf{Evolution of Catalog Complexity:} As the SRM catalog continues to grow through addition of new actions for emerging services and customer-specific customizations, the navigation challenge intensifies. The catalog's flexibility, which is a core architectural strength, paradoxically contributes to user experience degradation as the action space expands beyond what can be efficiently browsed through hierarchical navigation alone.
+
 \subsection{Natural Language as an Interface for Service Requests}
+
+Natural language interfaces have demonstrated significant success in reducing user friction for complex systems across various domains, from web search to voice assistants to customer support chatbots. The application of natural language understanding to service request management offers several compelling advantages:
+
+\textbf{Alignment with User Mental Models:} Users naturally formulate service needs in descriptive language rather than navigating taxonomies. A statement like "The new hire needs access to the shared drives and email" directly expresses business intent without requiring translation to technical service categories. Natural language interfaces meet users where they are, eliminating the cognitive translation step from business need to IT taxonomy.
+
+\textbf{Reduced Time to Request Initiation:} By accepting free-form descriptions and automatically mapping them to catalog actions, the system compresses the request initiation workflow from multi-step navigation to single-step description. This reduction in user effort directly improves adoption of self-service portals, reducing reliance on manual ticket creation through support channels.
+
+\textbf{Accessibility for Non-Technical Users:} Business users without IT background can articulate needs in their own terminology, with the system handling the translation to technical service definitions. This democratization of self-service access reduces dependency on IT-literate intermediaries and distributes request creation capacity more broadly across the organization.
+
+\textbf{Contextual Understanding:} Advanced natural language processing can extract contextual information from user descriptions, such as urgency indicators ("urgent," "as soon as possible"), scope qualifiers ("for the entire department"), or temporal constraints ("before the end of the week"), potentially enabling enhancements like automatic priority assignment or scheduling.
+
 \subsection{Explainability and Trust in Enterprise Environments}
+
+While natural language interfaces offer significant usability advantages, their application in enterprise IT service management introduces unique requirements around explainability and trust that distinguish this use case from consumer-facing recommendation systems \cite{madabhushini2025explainable}:
+
+\textbf{High-Stakes Decision Making:} Service requests in enterprise environments often involve privileged operations (account creation, permission grants, resource provisioning) with security, compliance, and cost implications. Users must be able to validate that recommended actions align with their actual intent before submission, as erroneous requests may trigger unintended provisioning, create security vulnerabilities, or violate compliance policies.
+
+\textbf{Regulatory and Audit Requirements:} Many enterprise IT operations are subject to regulatory frameworks (SOX, GDPR, HIPAA) requiring comprehensive audit trails and demonstrable controls \cite{madabhushini2025explainable}. Recommendation systems must provide transparent reasoning that enables post-hoc review of why specific actions were suggested, supporting compliance documentation and incident investigation \cite{madabhushini2025explainable}.
+
+\textbf{User Confidence and Adoption:} Enterprise users, particularly those in technical roles, exhibit skepticism toward "black box" AI systems that provide recommendations without explanation. Transparent reasoning builds user confidence in system suggestions and facilitates adoption by demonstrating that recommendations are grounded in relevant catalog information rather than arbitrary model outputs \cite{madabhushini2025explainable}.
+
+\textbf{Error Correction and Learning:} Explainable recommendations enable users to identify when the system has misunderstood their intent, providing opportunities for clarification and refinement \cite{madabhushini2025explainable}. If a recommendation system suggests "Delete User Account" when the user intended "Disable User Account," transparent reasoning ("This action permanently removes the user") enables immediate recognition of the mismatch and correction before request submission.
+
+These explainability requirements motivate the architectural decision to implement a Retrieval Augmented Generation approach rather than relying on a Large Language Model alone. By explicitly retrieving relevant catalog entries and incorporating them into the generation context, the system ensures that recommendations are grounded in actual catalog content and can provide traceable reasoning linking user queries to specific action properties.
 
 \section{Large Language Models in Recommendation Systems}
 \subsection{Overview of Large Language Models}
