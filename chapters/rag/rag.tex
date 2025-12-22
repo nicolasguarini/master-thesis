@@ -33,7 +33,7 @@ Natural language interfaces have demonstrated significant success in reducing us
 \textbf{Contextual Understanding:} Advanced natural language processing can extract contextual information from user descriptions, such as urgency indicators ("urgent," "as soon as possible"), scope qualifiers ("for the entire department"), or temporal constraints ("before the end of the week"), potentially enabling enhancements like automatic priority assignment or scheduling.
 
 \subsection{Explainability and Trust in Enterprise Environments}
-
+    
 While natural language interfaces offer significant usability advantages, their application in enterprise IT service management introduces unique requirements around explainability and trust that distinguish this use case from consumer-facing recommendation systems \cite{madabhushini2025explainable}:
 
 \textbf{High-Stakes Decision Making:} Service requests in enterprise environments often involve privileged operations (account creation, permission grants, resource provisioning) with security, compliance, and cost implications. Users must be able to validate that recommended actions align with their actual intent before submission, as erroneous requests may trigger unintended provisioning, create security vulnerabilities, or violate compliance policies.
@@ -47,28 +47,464 @@ While natural language interfaces offer significant usability advantages, their 
 These explainability requirements motivate the architectural decision to implement a Retrieval Augmented Generation approach rather than relying on a Large Language Model alone. By explicitly retrieving relevant catalog entries and incorporating them into the generation context, the system ensures that recommendations are grounded in actual catalog content and can provide traceable reasoning linking user queries to specific action properties.
 
 \section{Large Language Models in Recommendation Systems}
+
+Large Language Models have emerged as powerful tools for natural language understanding and generation, demonstrating remarkable capabilities in tasks ranging from question answering to code generation. Their application to recommendation systems represents a significant departure from traditional collaborative filtering and content-based approaches, offering the potential for more nuanced understanding of user intent and more flexible matching between queries and catalog items.
+
 \subsection{Overview of Large Language Models}
+
+Large Language Models are neural networks trained on massive text corpora using self-supervised learning objectives, typically predicting the next token in a sequence given preceding context. Modern LLMs such as GPT-4 \cite{openai2024gpt4technicalreport}, Claude \cite{anthropic2024claude}, and open-source alternatives like Llama \cite{touvron2023llamaopenefficientfoundation} employ transformer architectures \cite{vaswani2023attentionneed} with billions of parameters, enabling them to capture complex patterns in language use and world knowledge encoded in their training data.
+
+The transformer architecture, introduced by Vaswani et al. \cite{vaswani2023attentionneed}, revolutionized natural language processing through its attention mechanism that enables models to weigh the relevance of different parts of the input when generating outputs. This architecture allows LLMs to maintain context over long sequences and capture relationships between distant tokens, essential capabilities for understanding complex user queries and catalog descriptions.
+
+Training these models typically follows a two-phase approach: pre-training on large-scale unlabeled text data using language modeling objectives, followed by fine-tuning on task-specific datasets or instruction-following examples \cite{ouyang2022traininglanguagemodelsfollow}. Recent advances in instruction tuning and reinforcement learning from human feedback (RLHF) have significantly improved LLMs' ability to follow complex instructions and generate responses aligned with human preferences \cite{ouyang2022traininglanguagemodelsfollow}.
+
+For the SRM recommendation system, the selected model is GPT-OSS-120B, a 120-billion parameter open-source model deployed on-premise within the company infrastructure. This deployment strategy addresses several enterprise requirements: data privacy concerns by ensuring that user queries and catalog information never leave the corporate network; compliance with regulatory frameworks prohibiting transmission of potentially sensitive service request descriptions to external API providers; cost control by eliminating per-request API fees; and customization potential through fine-tuning on company-specific data.
+
+In addition, the system uses all-mpnet-base-v2 as the embedding model for semantic representation of service requests and catalog items. This model is also deployed on-premise, ensuring consistent privacy guarantees and tight integration with the internal infrastructure.
+
 \subsection{LLMs for Intent Understanding and Action Selection}
+
+The application of LLMs to the action recommendation task leverages several of their core capabilities that align naturally with the requirements of intent understanding and catalog matching:
+
+\textbf{Semantic Understanding Beyond Keywords:} Unlike traditional keyword-based search systems that rely on lexical overlap between queries and documents, LLMs can understand the semantic intent behind user descriptions. A query like "The intern needs email access" is semantically equivalent to "Create a mailbox for a temporary employee" despite sharing no common keywords beyond "email." LLMs can recognize these semantic relationships through their learned representations of language meaning.
+
+\textbf{Contextual Disambiguation:} Many terms in IT service management are polysemous or context-dependent. The word "access" might refer to VPN access, shared drive access, application access, or building access depending on context. LLMs can leverage surrounding context in the user query to disambiguate intent, matching "remote access for traveling employees" to VPN-related actions while routing "access to the accounting system" to application permission actions.
+
+\textbf{Handling Underspecified Queries:} Users often provide incomplete descriptions that nonetheless contain sufficient context for a human to infer intent. A query like "new user setup" might implicitly require account creation, mailbox provisioning, group memberships, and license assignment depending on organizational context. LLMs can leverage patterns learned during training to infer these implicit requirements and recommend comprehensive action sets.
+
+\textbf{Multi-Turn Refinement Potential:} While the current implementation focuses on single-turn recommendations, LLMs enable future extensions to conversational interfaces where the system can ask clarifying questions ("Does the user need Office 365 access?" or "Is this a temporary or permanent account?") to narrow down recommendations. This capability emerges naturally from LLMs' instruction-following abilities without requiring explicit dialogue state tracking logic.
+
+\textbf{Reasoning and Explanation Generation:} LLMs can generate natural language explanations for their recommendations, a critical requirement for enterprise deployment. By prompting the model to articulate why a particular action matches the user's query, the system produces human-readable justifications that build trust and enable error correction.
+
 \subsection{Limitations of Naked LLMs}
 
+Despite their impressive capabilities, deploying LLMs directly for action recommendation without retrieval augmentation introduces several significant limitations that compromise reliability and applicability in enterprise production environments:
+
+\textbf{Hallucination and Factual Inaccuracy:} LLMs are prone to generating plausible-sounding but factually incorrect information, a phenomenon known as hallucination \cite{Ji_2023}. When asked to recommend actions from a catalog, an unaugmented LLM might invent action names, fabricate capability descriptions, or confidently recommend non-existent services. This unreliability is particularly problematic in enterprise contexts where users expect system outputs to reflect actual available services.
+
+\textbf{Knowledge Cutoff and Staleness:} LLMs are frozen at the time of training, with no ability to incorporate new information without retraining or fine-tuning. For SRM, where the catalog evolves continuously through addition of new actions, retirement of obsolete services, and modification of existing workflows, an unaugmented LLM would quickly become outdated. A model trained in 2023 would have no knowledge of actions added to the catalog in 2024, making it unsuitable for production deployment without mechanisms to inject current catalog state.
+
+\textbf{Lack of Grounding in Catalog Data:} LLMs generate recommendations based on patterns learned during training rather than explicit consultation of the current catalog. This means recommendations may reflect actions that were common in the training data but are not available in the specific SRM deployment, or conversely fail to surface recently added actions that match user needs perfectly. The absence of explicit grounding mechanisms prevents verification that recommendations correspond to actual catalog entries.
+
+\textbf{Inability to Handle Catalog-Specific Details:} Enterprise service catalogs often contain highly specific actions with particular naming conventions, technical requirements, or organizational policies that would not be well-represented in general pre-training data. An LLM trained on broad internet text may struggle to distinguish between "Create User Account (Standard)" and "Create User Account (Privileged)" when both actions exist in the catalog with subtle but critical differences in provisioning logic.
+
+\textbf{Attribution and Auditability Challenges:} Unaugmented LLM recommendations lack clear attribution to specific catalog entries or reasoning chains, making it difficult to audit why particular suggestions were made. For compliance and debugging purposes, organizations need to trace recommendations back to concrete catalog data and understand the matching logic, capabilities that "black box" LLM generation does not inherently provide.
+
+\textbf{Resource Consumption and Latency:} Large-scale LLMs, particularly those with 120B parameters like GPT-OSS-120B, require substantial computational resources for inference. Generating recommendations through multiple forward passes or extensive prompt iterations introduces latency that degrades user experience in interactive applications. Retrieval mechanisms can reduce the inference burden by pre-filtering the action space before LLM processing.
+
+These limitations motivate the adoption of Retrieval Augmented Generation, which addresses these concerns by explicitly retrieving relevant catalog entries and incorporating them into the model's generation context, ensuring that recommendations are grounded in current catalog state while maintaining the LLM's semantic understanding and explanation capabilities.
+
 \section{Retrieval Augmented Generation (RAG)}
+
+Retrieval Augmented Generation represents a paradigm shift in how Large Language Models access and utilize information, combining the semantic understanding capabilities of neural language models with the factual grounding and updatability of traditional information retrieval systems.
+
 \subsection{Core Concepts of Retrieval Augmented Generation}
+
+RAG, originally introduced by Lewis et al. \cite{lewis2021retrievalaugmentedgenerationknowledgeintensivenlp}, augments language model generation with a retrieval component that fetches relevant documents from an external knowledge base before generation. This architecture addresses the fundamental tension between parametric knowledge (information encoded in model weights during training) and non-parametric knowledge (information stored in external databases or document collections).
+
+The key insight of RAG is that rather than requiring LLMs to memorize all facts within their parameters, we can provide models with access to external knowledge sources at inference time. This approach mirrors human information processing: rather than memorizing every fact, humans retrieve relevant information from external sources (books, databases, colleagues) when needed for decision-making or problem-solving.
+
+The RAG architecture typically consists of three primary components:
+\begin{enumerate}
+    \item \textbf{Document Store:} A repository containing the knowledge base documents. In the SRM context, representations of catalog actions including descriptions, extended descriptions, tags, categories, and other metadata. The document store must support efficient retrieval of relevant documents given a query.
+    \item \textbf{Retriever:} A component that accepts a query (the user's service request description) and returns the most relevant documents from the knowledge base. Modern retrievers typically employ dense vector representations computed by neural embedding models, enabling semantic similarity matching beyond keyword overlap.
+    \item \textbf{Generator:} A Large Language Model that receives both the original query and the retrieved documents, using this augmented context to generate the final output. In SRM's case, ranked action recommendations with explanatory reasoning.
+\end{enumerate}
+
+This architecture provides several fundamental advantages over pure parametric models: knowledge can be updated by modifying the document store without retraining the LLM; the system can scale to arbitrarily large knowledge bases by improving retrieval efficiency rather than increasing model size; and generation is grounded in specific source documents, enabling attribution and verification.
+
 \subsection{How RAG Works}
+
+The RAG process for action recommendation in SRM follows a multi-stage pipeline that transforms user queries into grounded recommendations through retrieval and generation phases.
+
+\subsubsection{Document Embedding and Indexing}
+
+The first phase, typically executed offline during system initialization, involves converting catalog actions into dense vector representations and indexing them for efficient retrieval. Each action in the SRM catalog is transformed into a textual document containing its ID, description, extended descriptions (Italian and English), tags, action group, category, and status. These text representations are then processed through an embedding model that maps variable-length text to fixed-dimensional dense vectors.
+
+Embedding models are neural networks trained to encode semantic similarity: texts with similar meanings should have embedding vectors that are close in the resulting vector space (typically measured by cosine similarity or Euclidean distance). Modern embedding models like sentence-transformers \cite{reimers2019sentencebertsentenceembeddingsusing} are trained on large datasets of text pairs with similarity labels, learning to capture semantic relationships beyond superficial lexical overlap.
+
+The generated embeddings are stored in a vector database (the system uses Chroma \cite{chroma2023}), which indexes vectors using approximate nearest neighbor algorithms (such as HNSW \cite{malkov2018efficientrobustapproximatenearest}) that enable sub-linear time retrieval even as the catalog scales to thousands of actions. This indexing is critical for interactive performance: exact nearest neighbor search would require computing similarity between the query and every catalog action, while approximate algorithms achieve >95\% recall with orders of magnitude better performance.
+
+\subsubsection{Query Embedding and Semantic Retrieval}
+
+When a user submits a service request description, the system first embeds the query using the same embedding model used for catalog indexing. This ensures that queries and catalog actions exist in the same semantic vector space, enabling meaningful similarity comparisons. The query embedding is a dense vector (typically 384-768 dimensions for modern sentence transformers) that encodes the semantic content of the user's description.
+
+The vector database then performs approximate nearest neighbor search to identify the top-k most similar catalog actions to the query. This retrieval is semantic rather than lexical: the query "I need to recover a deleted email" can retrieve actions related to "Mailbox Recovery" or "Restore Email Items" even if the exact words differ, because the embedding model has learned that these phrases are semantically related through its training data.
+
+The retrieval phase typically returns 5-10 candidate actions, balancing between providing sufficient context to the LLM and avoiding context window overflow. These candidates form the retrieval set that will be incorporated into the generation prompt.
+
+\subsubsection{Context Construction and Prompt Engineering}
+
+The retrieved candidate actions are formatted into a structured context document that will be provided to the LLM alongside the user's query. Effective prompt engineering is critical at this stage, as the prompt structure significantly influences the quality and format of LLM outputs \cite{wei2023chainofthoughtpromptingelicitsreasoning}.
+
+The SRM system employs a carefully designed prompt template that includes: an instruction defining the task ("identify the TOP 3 most relevant actions"); the retrieved actions formatted with their IDs, descriptions, extended descriptions, groups, and tags; the user's original query; and a structured output format specification requiring JSON responses with action IDs, confidence scores, and reasoning.
+
+This prompt structure implements several best practices from prompt engineering research: clear task instructions reduce ambiguity in what the model should generate \cite{brown2020languagemodelsfewshotlearners}; providing concrete examples (few-shot learning) improves output quality, though not shown in the current implementation \cite{brown2020languagemodelsfewshotlearners}; structured output formats enable reliable parsing of model responses \cite{kojima2023largelanguagemodelszeroshot}; and explicit reasoning requirements encourage chain-of-thought processing that improves answer quality \cite{wei2023chainofthoughtpromptingelicitsreasoning}.
+
+\subsubsection{LLM Generation with Retrieved Context}
+
+The LLM receives the augmented prompt containing both the user query and retrieved candidate actions, generating a response that ranks and explains the most relevant matches. The generation process leverages several mechanisms learned during training:
+
+\textbf{Attention over Retrieved Context:} The transformer's attention mechanism \cite{vaswani2023attentionneed} allows the model to selectively focus on relevant parts of the retrieved context when generating each token of the response. When generating the reasoning for why "Create User Account" matches the query "set up new employee," the model attends to the action's description and required fields.
+
+\textbf{Constrained Generation:} The prompt explicitly constrains the output format to JSON with specific fields, leveraging the model's instruction-following capabilities developed through instruction tuning \cite{ouyang2022traininglanguagemodelsfollow}. This produces structured outputs that can be reliably parsed by downstream systems.
+
+\textbf{Grounded Reasoning:} By generating explanations based on information present in the retrieved context rather than parametric knowledge alone, the model produces attributable reasoning that can be traced back to specific catalog properties. This grounding reduces hallucination and improves reliability.
+
+The temperature parameter is set to 0 (deterministic sampling) to ensure consistent outputs across repeated queries, critical for production deployment where users expect reproducible recommendations.
+
+\subsubsection{Output Parsing and Validation}
+
+The LLM generates a JSON response containing ranked recommendations with action IDs, descriptions, confidence scores (0-1 scale), and brief reasoning. The system includes a cleaning step that removes common artifacts from LLM outputs: thinking tags (\texttt{<think>...</think>}) that some models include to show reasoning processes, markdown code block delimiters (\texttt{```json}), and extraneous text before or after the JSON object.
+
+After cleaning, the response is parsed and validated to ensure it contains the required structure. Validation failures trigger error handling that returns the raw response for debugging, enabling rapid diagnosis of prompt engineering issues or unexpected model behaviors.
+
 \subsection{Problems Solved by RAG}
 
+The RAG architecture addresses the fundamental limitations of unaugmented LLMs identified in Section 2.3, providing several critical capabilities required for reliable production deployment:
+
+\textbf{Factual Grounding and Hallucination Mitigation:} By explicitly providing current catalog actions in the generation context, RAG ensures that recommendations correspond to actual available services rather than invented actions. The model cannot hallucinate an action that doesn't exist in the retrieved set, as it is explicitly instructed to select from the provided candidates. This grounding dramatically reduces the hallucination problem that plagues pure LLM approaches.
+
+\textbf{Knowledge Freshness and Updatability:} When new actions are added to the SRM catalog, they are immediately available for recommendation after re-indexing the vector database, a process requiring minutes rather than the days or weeks needed for model retraining. This updatability ensures the recommendation system remains synchronized with catalog evolution without requiring continuous model fine-tuning.
+
+\textbf{Transparent Attribution:} RAG recommendations can be attributed to specific catalog entries present in the retrieval context. For each recommended action, the system can point to the exact catalog document that was retrieved and the properties that influenced the match. This transparency supports auditability requirements and enables users to verify that recommendations are based on actual catalog content.
+
+\textbf{Reduced Computational Requirements:} While RAG introduces a retrieval phase, it often reduces overall computational costs by narrowing the LLM's consideration space. Rather than processing the entire catalog (300+ actions) in the prompt, the system provides only the top-k most relevant candidates (typically 5-10), reducing prompt length and inference time. For extremely large catalogs, this filtering becomes essential for practical deployment.
+
+\textbf{Handling of Specialized Vocabulary:} The retrieval phase, operating over catalog-specific text representations, naturally handles company-specific terminology, technical jargon, and naming conventions that may be poorly represented in the LLM's training data. Even if the LLM has never seen terms like "Privileged User Account" during pre-training, the retriever can match queries containing these terms to relevant catalog entries, with the LLM then leveraging its general language understanding to generate appropriate reasoning.
+
+\textbf{Separation of Concerns:} RAG architectures cleanly separate the semantic matching problem (retrieval) from the ranking and explanation problem (generation). This modularity enables independent optimization of each component: improving retrieval quality through better embedding models or indexing strategies, and enhancing explanation quality through prompt engineering or model selection, without requiring coordinated changes across the system.
+
+The combination of these capabilities makes RAG the architecture of choice for the SRM recommendation system, balancing the flexibility and semantic understanding of LLMs with the reliability and updatability requirements of enterprise production systems.
+
 \section{Design of the RAG-based Recommendation System in SRM}
+
+The SRM recommendation system implements a complete RAG pipeline exposed through a RESTful API built with FastAPI, enabling seamless integration with the existing MyElmec customer portal. The system is designed for deployment on company infrastructure alongside the on-premise GPT-OSS-120B language model, ensuring data sovereignty and eliminating external API dependencies.
+
 \subsection{High-Level Architecture}
+
+The recommendation system architecture, illustrated in Figure \ref{fig:rag_architecture}, consists of five primary components organized into initialization and inference phases.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.85\textwidth]{images/rag/mermaid-rag-flow.png}
+    \caption{High-Level Architecture of the RAG-based Recommendation System}
+    \label{fig:rag_architecture}
+\end{figure}
+
+\subsubsection{Catalog Data Source}
+
+The system interfaces with the SRM backend API to retrieve the complete actions catalog for the target customer. The endpoint \texttt{/api/catalog/customers/\{IDRS\}/actions/details/} returns a JSON array containing all actions accessible to the customer, incorporating the three-level configuration hierarchy resolution. Each action entry includes comprehensive metadata: unique identifier, description, extended descriptions in Italian and English, tags, action group information, category details, and status.
+
+This API-based catalog retrieval ensures that the recommendation system operates on the same effective catalog configuration visible to the customer through the standard UI, including any customer-specific or action-specific customizations. The use of an API endpoint rather than direct database access maintains separation of concerns and enables independent scaling of the recommendation service.
+
+\subsubsection{Document Preparation and Embedding}
+
+The \texttt{ActionMatcherRAG} class, implemented in Listing \ref{lst:document_prep}, transforms catalog actions into text documents suitable for embedding. For each action, the system constructs a comprehensive text representation concatenating all relevant fields, enabling the embedding model to capture semantic relationships across multiple properties.
+
+\begin{listing}[htbp]
+\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+def prepare_documents(self, actions_data: List[Dict]) -> List[Document]:
+    documents = []
+    for action_item in actions_data:
+        action = action_item.get("action", {})
+        text_content = f"""
+Action ID: {action.get('id')}
+Description: {action.get('description', '')}
+Extended Description (IT): {action.get('extended_description_it', '')}
+Extended Description (EN): {action.get('extended_description_en', '')}
+Tags: {action.get('tag', '')}
+Action Group: {action.get('action_group', {}).get('description', '')}
+# ...
+        """
+        metadata = {
+            "action_id": action.get("id"),
+            "description": action.get("description", ""),
+            # ... additional metadata
+        }
+        documents.append(Document(page_content=text_content, 
+                                  metadata=metadata))
+    return documents
+\end{minted}
+\caption{Document Preparation for Catalog Actions}
+\label{lst:document_prep}
+\end{listing}
+
+The inclusion of both Italian and English extended descriptions accommodates the bilingual nature of the SRM deployment, where some customers operate primarily in Italian while others prefer English documentation. Tags and action group information provide categorical context that helps the embedding model understand relationships between actions within the organizational hierarchy.
+
+\subsubsection{Vector Store and Retrieval}
+
+The prepared documents are processed through the Chroma vector database \cite{chroma2023}, which handles both embedding generation and similarity search. The system employs the \texttt{sentence-transformers/all-MiniLM-L6-v2} model for embedding, a compact transformer model optimized for semantic similarity tasks \cite{reimers2019sentencebertsentenceembeddingsusing}. This model maps text sequences to 384-dimensional dense vectors, achieving strong performance on semantic textual similarity benchmarks while maintaining computational efficiency suitable for real-time inference.
+
+Document chunking is performed through LangChain's \texttt{RecursiveCharacterTextSplitter} with a chunk size of 1000 characters and 200-character overlap. This chunking strategy ensures that action descriptions exceeding the optimal embedding length are split appropriately while maintaining context continuity through overlap. For the SRM catalog, where most action descriptions are concise, chunking typically produces one or two chunks per action.
+
+The retriever is configured to return the top-5 most semantically similar actions to a given query. This retrieval cardinality balances between providing sufficient candidates for the LLM to select from (enabling robust ranking) and avoiding context window overflow or introduction of irrelevant distractors that might confuse the ranking process.
+
+\subsubsection{Language Model Integration}
+
+The system integrates with GPT-OSS-120B through an OpenAI-compatible API interface exposed by the company's LLM serving infrastructure. The \texttt{ChatOpenAI} wrapper from LangChain provides a standardized interface that abstracts the specifics of the serving layer, enabling future model substitution without requiring changes to the RAG pipeline logic.
+
+The temperature parameter is set to 0, enforcing deterministic sampling that produces consistent outputs for repeated queries. This determinism is critical for production deployment, where users expect reproducible recommendations and where inconsistent results would undermine trust in the system.
+
+\subsubsection{RAG Chain Composition}
+
+The RAG pipeline is implemented as a LangChain chain that composes retrieval, context formatting, prompting, and generation into a unified execution graph. Listing \ref{lst:rag_chain} demonstrates the chain construction using LangChain's declarative syntax.
+
+\begin{listing}[htbp]
+\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+def create_rag_chain(self) -> None:
+    prompt = PromptTemplate(
+        template=prompt_template, 
+        input_variables=["context", "question"]
+    )
+    
+    def format_docs(docs):
+        return "\n\n---\n\n".join([
+            f"Action ID: {doc.metadata.get('action_id')}\n"
+            f"Description: {doc.metadata.get('description')}\n"
+            # ...
+            for doc in docs
+        ])
+    
+    self.rag_chain = (
+        {"context": self.retriever | format_docs, 
+         "question": RunnablePassthrough()}
+        | prompt
+        | self.llm
+        | StrOutputParser()
+    )
+\end{minted}
+\caption{RAG Chain Composition with LangChain}
+\label{lst:rag_chain}
+\end{listing}
+
+This declarative composition automatically handles data flow between components: the user query is embedded and used for retrieval, retrieved documents are formatted into context text, the prompt template is populated with both context and query, the completed prompt is sent to the LLM, and the raw text response is extracted. This abstraction eliminates boilerplate code and provides a clear representation of the data flow.
+
 \subsection{Embedding Strategy}
 
+The current implementation adopts an on-demand embedding strategy where the complete catalog is fetched, embedded, and indexed at the beginning of each recommendation request. This approach, while appearing inefficient, is justified by several pragmatic considerations specific to the SRM deployment context.
+
+\subsubsection{Catalog Scale and Embedding Performance}
+
+The SRM catalog for a typical customer contains 200-400 actions after configuration hierarchy resolution. Modern sentence transformer models like all-MiniLM-L6-v2 can embed text sequences at rates exceeding 1000 sequences/second on modern GPUs or 100+ sequences/second on CPU-only deployments. Embedding the complete catalog thus requires 2-4 seconds on CPU or under 1 second on GPU, latencies that remain within acceptable bounds for interactive user interfaces.
+
+The Chroma vector database construction and indexing add minimal overhead, as the approximate nearest neighbor index for collections of this scale can be built in sub-second timeframes. Total initialization time (catalog fetch + embedding + indexing) typically ranges from 5-10 seconds depending on API response time and hardware configuration, acceptable for an asynchronous recommendation workflow where users expect several seconds of processing time for "intelligent" suggestions.
+
+\subsubsection{Catalog Freshness and Consistency}
+
+The on-demand embedding strategy ensures that recommendations always reflect the current catalog state, including actions added, modified, or removed since the previous request. This freshness guarantee is particularly valuable during the SRP-SRM coexistence period where the catalog evolves through nightly synchronization jobs. A request at 14:00 will reflect catalog changes synchronized at 01:00 that morning, while a pre-built index updated every 3 hours might still contain stale action definitions.
+
+The strategy also eliminates the complexity of cache invalidation logic that would be required for persistent vector stores. Determining when to refresh a cached index requires monitoring catalog modification timestamps, handling partial updates, and managing concurrent access during index rebuilds—engineering effort that outweighs the performance benefits for catalogs of SRM's scale.
+
+\subsubsection{Deployment Simplicity}
+
+On-demand embedding eliminates the need for persistent storage of vector indices, simplifying deployment to stateless container environments. The recommendation service can be deployed as a standard FastAPI application without requiring volume mounts, database migrations, or index initialization routines. This statelessness facilitates horizontal scaling, as multiple instances can be deployed without coordination or shared state management.
+
+\subsubsection{Future Optimization Path}
+
+The architecture is designed to accommodate future optimization through persistent indexing as the catalog grows. The modular separation between document preparation, embedding, and retrieval means that introducing a persistent vector store requires only localized changes to the \texttt{setup\_vectorstore} method. A caching strategy with periodic rebuilds (e.g., every 3 hours or on-demand via administrative API) could be implemented when catalog scale or request volume justifies the additional complexity.
+
+The current on-demand approach thus represents a pragmatic trade-off that prioritizes simplicity, freshness, and deployment flexibility over raw performance optimization premature for the system's current usage patterns and scale.
+
 \section{Recommendation Flow}
+
+The recommendation flow orchestrates the complete pipeline from user query submission to structured recommendation delivery, integrating the RAG components described in previous sections into a cohesive end-to-end workflow.
+
 \subsection{User Query Processing}
+
+User interaction with the recommendation system occurs through a FastAPI endpoint that accepts natural language queries and returns structured JSON responses. Listing \ref{lst:fastapi_endpoint} shows the endpoint implementation.
+
+\begin{listing}[htbp]
+\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+@app.post("/match", response_model=MatchResponse)
+async def match_action(request: MatchRequest) -> MatchResponse:
+    logger.info(f"Processing: {request.user_request[:50]}...")
+    
+    matcher = ActionMatcherRAG(
+        api_endpoint=API_ENDPOINT, 
+        lm_studio_url=LM_STUDIO_URL
+    )
+    
+    matcher.initialize()  # Fetch catalog, embed, index
+    result = matcher.match_action(request.user_request)
+    
+    if "error" in result:
+        raise HTTPException(status_code=500, 
+                          detail=result.get("error"))
+    
+    return MatchResponse(**result)
+\end{minted}
+\caption{FastAPI Endpoint for Action Matching}
+\label{lst:fastapi_endpoint}
+\end{listing}
+
+The endpoint leverages Pydantic models for request and response validation. The \texttt{MatchRequest} model enforces that user queries are non-empty strings with reasonable length constraints (1-1000 characters), while the \texttt{MatchResponse} model ensures that LLM outputs conform to the expected structure with exactly 3 matches, each containing an action ID, description, confidence score (0.0-1.0), and reasoning text.
+
+This type-safe interface provides several benefits: automatic validation of incoming requests with clear error messages for malformed inputs; guaranteed structure of responses that frontend applications can parse reliably without defensive null checking; and OpenAPI/Swagger documentation auto-generation that facilitates frontend integration and testing.
+
+The asynchronous handler design using \texttt{async def} enables the FastAPI server to handle multiple concurrent requests efficiently, important for production deployment where multiple users may request recommendations simultaneously. While the current implementation performs synchronous blocking calls within the handler (catalog fetch, embedding), the async interface provides a migration path to fully asynchronous execution through async HTTP clients and async LangChain components.
+
 \subsection{Semantic Retrieval of Candidate Actions}
+
+When a user query is submitted, the system first embeds it using the same sentence transformer model employed for catalog embedding, ensuring query and action representations exist in a shared semantic space. The query embedding is a 384-dimensional dense vector that encodes the semantic content of the user's request independent of surface-form lexical features.
+
+The vector database performs approximate nearest neighbor search over the indexed action embeddings using the Hierarchical Navigable Small World (HNSW) algorithm \cite{malkov2018efficientrobustapproximatenearest}. HNSW constructs a multi-layer graph structure where nodes represent vectors and edges connect semantically similar vectors, enabling sub-linear time search through hierarchical traversal. For the SRM catalog scale (hundreds of actions), HNSW achieves >95\% recall (finds 95\% of true nearest neighbors) while examining only a small fraction of the total index.
+
+The retrieval returns the top-5 most similar actions ranked by cosine similarity between query and action embeddings. Cosine similarity, defined as the dot product of normalized vectors, ranges from 0 (orthogonal, no similarity) to 1 (identical direction, perfect similarity). Actions with cosine similarity above typical thresholds (0.5-0.7) generally represent semantic matches worth presenting to the LLM for ranking.
+
 \subsection{Context-Augmented Prompt Construction}
+
+The retrieved candidate actions are formatted into a structured context document that will guide the LLM's ranking and explanation generation. Listing \ref{lst:prompt_template} shows the prompt template used for action matching.
+
+\begin{listing}[htbp]
+\begin{minted}[fontsize=\footnotesize,breaklines]{text}
+You are an AI assistant specialized in matching user requests 
+to IT service actions.
+
+Given the user's request and available actions from the catalog, 
+identify the TOP 3 most relevant actions.
+
+Available Actions Context:
+{context}
+
+User Request: {question}
+
+IMPORTANT: You MUST respond with a valid JSON object in this format:
+{
+    "matches": [
+        {
+            "action_id": <number>,
+            "description": "<action description>",
+            "confidence": <number between 0 and 1>,
+            "reasoning": "<brief explanation>"
+        }
+    ],
+    "user_request": "<original user request>"
+}
+
+Rules:
+- Return exactly 3 matches, ordered by confidence (highest first)
+- confidence must be between 0.0 and 1.0
+- Keep reasoning brief (max 50 words)
+- Respond ONLY with JSON, no additional text
+\end{minted}
+\caption{Prompt Template for Action Recommendation}
+\label{lst:prompt_template}
+\end{listing}
+
+The prompt template implements several prompt engineering best practices identified through iterative refinement: clear role definition ("AI assistant specialized in matching") establishes the model's persona and task context; structured output format with explicit schema reduces ambiguity in generation; concrete constraints (exactly 3 matches, confidence bounds, reasoning length) prevent common failure modes like generating too many/few results; and explicit instruction to respond only with JSON eliminates preambles and explanatory text that would break parsing.
+
+The context section is populated with the formatted descriptions of the 5 retrieved candidate actions, each presented with its ID, description, extended description, group, and tags. This formatting provides the LLM with sufficient information to assess relevance while maintaining readability that supports the model's attention mechanisms in identifying key details.
+
 \subsection{LLM Output Interpretation}
 
-\section{Integration with the SRM Workflow}
-\subsection{Validation and Safety Constraints}
+The LLM generates a JSON response following the prompt template structure, which undergoes cleaning and validation before being returned to the client. The cleaning process, shown in Listing \ref{lst:response_cleaning}, handles various formatting artifacts that LLMs commonly produce.
 
-\section{Limitations and Future Improvements}
-\subsection{Limitations and Future Improvements}
+\begin{listing}[htbp]
+\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+def clean_llm_response(self, response: str) -> str:
+    response_clean = response.strip()
+    
+    # Remove thinking tags (e.g., from Qwen models)
+    response_clean = re.sub(r"<think>.*?</think>", "", 
+                           response_clean, flags=re.DOTALL)
+    
+    # Remove markdown code blocks
+    if response_clean.startswith("```json"):
+        response_clean = response_clean[7:]
+    elif response_clean.startswith("```"):
+        response_clean = response_clean[3:]
+    if response_clean.endswith("```"):
+        response_clean = response_clean[:-3]
+    
+    # Extract JSON object
+    json_start = response_clean.find("{")
+    json_end = response_clean.rfind("}")
+    if json_start != -1 and json_end != -1:
+        response_clean = response_clean[json_start:json_end + 1]
+    
+    return response_clean
+\end{minted}
+\caption{LLM Response Cleaning and JSON Extraction}
+\label{lst:response_cleaning}
+\end{listing}
+
+This cleaning addresses several common LLM output patterns: thinking tags (\texttt{<think>...</think>}) that some models like Qwen use to expose reasoning processes; markdown code block delimiters (\texttt{```json}) that models trained to follow formatting conventions may include; and extraneous text before or after the JSON object that violates the "respond only with JSON" instruction.
+
+After cleaning, the response is parsed as JSON and validated against the expected schema. The validation checks for presence of the \texttt{matches} array and \texttt{user\_request} field, ensuring that the LLM followed the structured output format. Validation failures trigger error responses that include both the raw LLM output and the cleaned version, supporting rapid diagnosis of prompt engineering issues during development and production monitoring.
+
+Successfully validated responses are wrapped in Pydantic \texttt{MatchResponse} objects that enforce type constraints (confidence between 0.0-1.0, exactly 3 matches, reasoning under 200 characters). This double validation—first at JSON structure level, then at Pydantic schema level—provides robust guarantees about response quality before delivery to frontend applications.
+
+\subsection{Current Limitations}
+
+\subsubsection{Initialization Overhead}
+
+The on-demand embedding strategy, while ensuring catalog freshness and deployment simplicity, introduces 5-10 second latency for each recommendation request. This latency, while acceptable for an "intelligent assistant" feature where users expect some processing time, is noticeably longer than the sub-second response times users experience with traditional navigation. For high-frequency usage patterns where multiple users query simultaneously, this latency could degrade perceived system responsiveness.
+
+The initialization overhead also prevents integration of recommendations into more interactive contexts like real-time suggestion during form field population or proactive recommendation based on user role and recent activity patterns. These use cases would require sub-second response times incompatible with the current architecture.
+
+\subsubsection{Single-Turn Interaction Model}
+
+The current system operates in a single-turn request-response pattern where the user submits a query and receives three recommendations without opportunity for refinement or clarification. Many real-world user intents are initially ambiguous or underspecified, requiring clarifying questions to narrow the action space. For example, a query "create new user" might benefit from follow-up questions like "Does the user need email access?" or "Is this a permanent or temporary account?" to distinguish between multiple user creation workflows.
+
+The absence of conversational context management means each recommendation request is independent, preventing the system from learning from user corrections or refining suggestions based on rejected recommendations. If a user rejects all three suggestions and submits a new query, the system has no memory of the previous attempt and cannot adjust its retrieval or ranking strategy accordingly.
+
+\subsubsection{Limited Multilingual Support}
+
+While the catalog embedding includes both Italian and English descriptions, the current prompt template and LLM configuration do not explicitly handle multilingual queries or ensure that reasoning is generated in the user's preferred language. A user submitting a query in Italian may receive reasoning in English, potentially reducing comprehension and trust. The sentence transformer model, while trained on multilingual data, may exhibit performance degradation for non-English queries compared to English inputs.
+
+The system also lacks explicit language detection and routing logic that could select language-specific models or prompts optimized for the query language, potentially leaving performance on the table for Italian-speaking users who represent a significant portion of the SRM user base.
+
+\subsubsection{Absence of User Feedback Mechanisms}
+
+The current implementation lacks mechanisms for users to provide explicit feedback on recommendation quality—whether through binary relevance judgments (thumbs up/down), confidence corrections, or free-form comments. This absence prevents direct measurement of user satisfaction with recommendations and eliminates a valuable source of training data for future model improvements.
+
+Without feedback collection, the system relies on implicit signals (whether users select recommended actions) to assess quality, but these signals are noisy: a user might select a suboptimal recommendation due to uncertainty rather than confidence, or abandon the interface due to UI confusion rather than recommendation failure. Explicit feedback would enable clearer signal extraction for system evaluation and improvement.
+
+\subsubsection{Static Ranking and Personalization}
+
+The recommendation system ranks actions solely based on semantic similarity between the query and catalog descriptions, without incorporating user-specific context like role, department, recent activity, or historical action selection patterns. Two users submitting identical queries receive identical recommendations regardless of whether one is an IT administrator who frequently provisions privileged accounts and the other is a department manager who typically requests standard user accounts.
+
+This context-blindness represents a missed opportunity for personalization that could substantially improve recommendation relevance. Incorporating user context would enable the system to surface actions aligned with the user's typical workflows and authority levels, reducing the cognitive load of evaluating recommendations and increasing selection rates for suggested actions.
+
 \subsection{Future Extensions}
+
+Several enhancement directions offer potential for substantial improvements to recommendation quality, user experience, and system capabilities.
+
+\subsubsection{Persistent Vector Store with Incremental Updates}
+
+Implementing a persistent vector store that is rebuilt periodically (e.g., every 3 hours) or triggered by catalog modification events would eliminate the initialization overhead from the critical path of recommendation requests. The system could maintain the vector index in memory across requests, reducing response latency from 5-10 seconds to under 1 second for the majority of cases.
+
+Incremental update mechanisms could further optimize this approach by re-embedding only modified actions rather than rebuilding the entire index, enabling near-real-time catalog freshness with minimal computational overhead. Techniques like versioned indices with atomic swaps ensure that updates do not disrupt in-flight recommendation requests, maintaining service availability during index rebuilds.
+
+\subsubsection{Conversational Refinement Interface}
+
+Extending the system to support multi-turn conversations would enable clarifying questions and iterative refinement of recommendations. The LLM could identify ambiguous queries and generate targeted questions to narrow the action space, with the conversation history maintained in session state to inform subsequent retrieval and ranking.
+
+This enhancement would require implementing dialogue state management, tracking which actions have been previously recommended and rejected, and designing prompts that leverage conversation context for progressive disambiguation. The LangChain framework provides conversation memory abstractions that could facilitate this extension with moderate engineering effort.
+
+\subsubsection{Fine-Tuning and Domain Adaptation}
+
+The current system uses GPT-OSS-120B as a general-purpose language model without domain-specific fine-tuning. Collecting user interaction data (queries, selected actions, explicit feedback) would enable supervised fine-tuning to better align the model with SRM-specific terminology, action relationships, and ranking preferences observed in real usage.
+
+Fine-tuning could occur at multiple levels: training the embedding model on SRM-specific query-action pairs to improve semantic similarity estimation; instruction-tuning the LLM on examples of high-quality recommendations with reasoning; and potentially training a lightweight ranking model that reorders retrieval results based on user context features. These adaptations would improve recommendation quality without requiring architectural changes to the RAG pipeline.
+
+\subsubsection{Hybrid Retrieval Strategies}
+
+The current system relies solely on dense semantic retrieval through vector similarity. Hybrid approaches that combine dense retrieval with sparse retrieval (BM25, TF-IDF) have demonstrated superior performance on information retrieval benchmarks by capturing both semantic similarity and lexical overlap \cite{mudet2025hybridretrievalaugmentedgenerationrobust}. Implementing a hybrid retriever that merges results from dense and sparse indices could improve recall for queries containing specific technical terms or product names that are poorly captured by semantic embeddings alone.
+
+Techniques like Reciprocal Rank Fusion \cite{cormack2009rrf} or learned reranking provide principled methods for combining retrieval signals from heterogeneous sources, potentially improving the quality of the candidate set provided to the LLM for final ranking.
+
+\subsubsection{Explainable AI and Reasoning Transparency}
+
+While the current system generates natural language reasoning for each recommendation, the reasoning is produced by the LLM without grounding in explicit interpretable features. Future enhancements could include feature-based explanations that identify specific catalog properties (tags, field requirements, group membership) that contributed to the match, visualized through highlighting or structured breakdowns.
+
+Implementing attention visualization techniques that show which parts of the query and action description the model focused on during ranking could further enhance transparency, helping users understand the matching logic and building confidence in recommendations. These explainability enhancements would be particularly valuable for enterprise deployment where users expect transparency into automated decision-making systems.
+
+\subsubsection{Proactive Recommendation}
+
+The current system operates reactively, responding to explicit user queries. Proactive recommendation capabilities could surface relevant actions based on user context without requiring explicit queries: recommending common actions for new employees during onboarding, suggesting relevant actions based on the user's department and role, or identifying actions frequently used by similar users (collaborative filtering).
+
+These proactive capabilities would require integration with user profile data, activity tracking systems, and potentially training of user embedding models that map users to action preferences in a shared embedding space. The recommendation interface could present proactive suggestions as a "Recommended for You" section alongside the query input, providing value even before users articulate specific needs.
+
+The combination of these enhancements would evolve the system from a query-driven action lookup tool into a comprehensive intelligent assistant for service request management, combining semantic understanding, personalization, and proactive guidance to substantially reduce friction in the service request creation workflow.
