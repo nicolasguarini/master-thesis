@@ -6,13 +6,18 @@ The analysis of the architecture and workflow of the current SRP system has reve
 The SRP system is characterized by a fragmented architectural structure and complex interdependencies between its main components, which leads to several critical issues.
 
 \subsubsection{Monolithic Frontend Component}
-The user interface, responsible for navigating the Service Request catalog and completing the associated forms, is an excessively large and complex Vue.js frontend component (nearly 11,000 lines). This architecture makes modifications, extensions, and client-specific customizations exceptionally challenging \cite{benefits_issues_micro_frontends}. The logic for managing dynamic fields, their interdependencies, and the rules for compilation and validation are all handled at the frontend level through a long series of hard-coded conditional statements, such as the following:
+The user interface, responsible for navigating the Service Request catalog and completing the associated forms, is an excessively large and complex Vue.js frontend component (nearly 11,000 lines). This architecture makes modifications, extensions, and client-specific customizations exceptionally challenging \cite{benefits_issues_micro_frontends}. The logic for managing dynamic fields, their interdependencies, and the rules for compilation and validation are all handled at the frontend level through a long series of hard-coded conditional statements, such as the one shown in Listing \ref{lst:legacy-frontend-field-rendering}.
 
-\begin{minted}[linenos,tabsize=2,breaklines]{vue}
+\begin{listing}[htbp]
+\begin{minted}[linenos,tabsize=2,fontsize=\footnotesize,breaklines]{vue}
 <div v-if="field.desc == 'Domain'">
     ...
 </div>
-\end{minted}
+\end{minted}   
+\caption{Example of legacy monolithic frontend field rendering logic}
+\label{lst:legacy-frontend-field-rendering}
+\end{listing}
+
 
 This, in addition to mixing business logic with presentation, represents a significant challenge for catalog configuration, as there is no centralized way to manage the fields and their relationships. Every change, therefore, requires a direct intervention on the code, making the system inflexible and difficult to maintain, especially in a context where the operator modifying the catalog is not a programmer and does not know how the frontend code is structured. For instance, if an operator wanted to add a new "Domain" field to a Service Request, this field would need to have the exact description "Domain" and type "domain"; otherwise, the Vue.js component would not render it correctly.
 
@@ -24,9 +29,10 @@ The only information about the fields returned by the backend REST service (\tex
 
 For example, a field of type \texttt{UPN} is a composite field derived from the value of another field, '\texttt{Display Name}', concatenated with an '\texttt{@}' symbol, and suffixed with the value from a select field whose options are the client's domains, provided by an external REST service (e.g., "\texttt{n.guarini@elmec.it}", where "\texttt{n.guarini}" is the value of the "\texttt{Display Name}" field, and "\texttt{elmec.it}" is the value of the "\texttt{Domain}" select field). 
 
-Despite this complexity, the REST service returns only a JSON document of this type:
+Despite this complexity, the REST service returns only a JSON document like the one shown in Listing \ref{lst:example-srp-field-data-0}.
 
-\begin{minted}[linenos,tabsize=2,breaklines]{json}
+\begin{listing}[htbp]
+\begin{minted}[linenos,tabsize=2,fontsize=\footnotesize,breaklines]{json}
 {
     "idField": 1603,
     "descField": "UPN",
@@ -34,6 +40,10 @@ Despite this complexity, the REST service returns only a JSON document of this t
     "mandatory": true
 }
 \end{minted}
+\caption{Example of field data returned by legacy SRP System.}
+\label{lst:example-srp-field-data-0}
+\end{listing}
+
 
 thus delegating to the frontend the responsibility of interpreting the type and rendering the field correctly.
 

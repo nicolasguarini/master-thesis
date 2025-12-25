@@ -65,8 +65,10 @@ All the various customization logics (especially the customer-specific ones) thu
 The system transitioned from a component with approximately 11,000 lines of code to a component with only 1,000 lines of code, resulting in improved maintainability and ease of system extension, and with the possibility of implementing other frontends (e.g., a mobile app) with minimal effort without having to replicate all the complex field management logic.
 
 \subsubsection{Overly Generic Backend REST Services}\label{sec:solution-generic-rest-service}
-To solve the issues related to the frontend, a deep restructuring of the backend logic was necessary, especially concerning fields, moving from JSON responses of this type
-\begin{minted}[linenos,tabsize=2,breaklines]{json}
+To solve the issues related to the frontend, a deep restructuring of the backend logic was necessary, especially concerning fields, moving from JSON responses like the one shown in Listing \ref{lst:example-srp-field-data}, to much more detailed and specific responses, which provide the frontend with all the necessary information for the complete rendering of the entire form, such as the one shown in Listing \ref{lst:example-srm-field-data}.
+
+\begin{listing}[htbp]
+\begin{minted}[linenos,tabsize=2,fontsize=\footnotesize,breaklines]{json}
 {
     "idAction": 455,
     "idField": 1649,
@@ -77,9 +79,12 @@ To solve the issues related to the frontend, a deep restructuring of the backend
     "mandatory": false
 }
 \end{minted}
+\caption{Example of field data retrieved from legacy SRP System}
+\label{lst:example-srp-field-data}
+\end{listing}
 
-to much more detailed and specific responses, which provide the frontend with all the necessary information for the complete rendering of the entire form, such as the following:
-\begin{minted}[linenos,tabsize=2,breaklines]{json}
+\begin{listing}[htbp]
+\begin{minted}[linenos,tabsize=2,fontsize=\footnotesize,breaklines]{json}
 {
     "field": {
         "id": 3001,
@@ -121,6 +126,9 @@ to much more detailed and specific responses, which provide the frontend with al
     "display_order": 26
 }
 \end{minted}
+\caption{Example of field data returned by the new SRM System}
+\label{lst:example-srm-field-data}
+\end{listing}
 
 In addition to modeling all possible properties of a field in a clear and structured way, the new REST services are also responsible for managing all the customization and configuration logic of the fields, with a three-level structure (which will be detailed in the chapter, dedicated to implementation aspects):
 
@@ -142,10 +150,9 @@ The dependency on the agent installed at the customer site has been completely e
 
 In this way, not only is the dependency on the agent, and all the associated logic, eliminated, but all the scripts related to the Service Requests, which previously resided physically inside the customers' Domain Controllers and were not tracked in any way, are now versioned.
 
-The cost of these improvements is represented by the additional logic needed to manage communications with Provision Prime, specifically the retrieval of the target machine. To implement these retrieval logics, which are highly custom for each type of target machine (e.g., Domain Controller, Exchange Server, internal workers, etc.), the \textit{Strategy} design pattern \cite{strategy_pattern} was leveraged. This pattern allows each retrieval logic to be encapsulated in a separate class, making the code more modular, extensible, and maintainable (a topic that will be explored in depth in Section \ref{sec:target_machine_strategy_pattern}).
+The cost of these improvements is represented by the additional logic needed to manage communications with Provision Prime, specifically the retrieval of the target machine. To implement these retrieval logics, which are highly custom for each type of target machine (e.g., Domain Controller, Exchange Server, internal workers, etc.), the \textit{Strategy} design pattern \cite{strategy_pattern} was leveraged. This pattern allows each retrieval logic to be encapsulated in a separate class, making the code more modular, extensible, and maintainable (an example of this pattern is shown in Listing \ref{lst:target_type_enum} and Listing \ref{lst:target_type_migration}).
 
 As for the script execution logs, which are needed to monitor the status of Service Requests and detect execution errors, an integration with an AWS S3 bucket, a scalable and durable storage service, will be implemented. This way, every time a script is executed on a remote machine, the logs will be uploaded by the DMI (via the Ansible playbook) to the S3 bucket, ensuring centralized and secure access to execution logs regardless of the machine on which they were generated.
-
 
 \subsection{Code and Data Management Issues}
 The lack of versioning and modern debugging capabilities outlined in the existing system is fundamentally addressed by centralizing all disparate logic (previously scattered across Stored Procedures and SSIS jobs) into a unified, version-controlled software project integrated with a robust CI/CD pipeline. By adopting Git as the standard Version Control System (VCS), all business logic is now treated as application code. This immediately solves the versioning problem: every change is tracked, attributed to an author, and can be reverted, enabling seamless collaboration and a full audit trail. Moreover, moving the core business logic out of the database and into a dedicated backend service (Django REST Framework) written in a modern language (Python) drastically improves debuggability, allowing developers to use powerful, standardized IDE tools to set breakpoints, inspect variables, and step through code without impacting the production database.
