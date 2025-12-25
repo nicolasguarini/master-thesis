@@ -1,0 +1,49 @@
+\begin{center}
+    \Large{\textbf{Innovative Management of Service Requests:From a Distributed Monolith to a Large-Scale Microservices Architecture, with RAG-Enhanced Recommendation System}}
+\end{center}
+
+\vspace{9mm}
+
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[width=4.5cm]{Immagini/logo bicocca.png}
+\end{figure}
+
+\vspace{9mm}
+
+\begin{minipage}[t]{1\textwidth}
+    \begin{multicols}{2}
+    	{\normalsize{\textbf{Advisor:}}{\normalsize\vspace{1mm}
+        \\ \normalsize{Prof. Leonardo Mariani }}} \\ 
+
+        {\normalsize{\textbf{Tutor:}}{\normalsize\vspace{1mm}
+        \\ \normalsize{Dr. Mattia Lovallo }}} \\ 
+        
+         \columnbreak
+         \columnbreak
+
+         \begin{flushright}
+            {\normalsize{\textbf{Master's Thesis by:}}{\normalsize\vspace{1mm}
+            \\ \normalsize{Nicolas Guarini, Student ID 918670}\\\vspace{5mm}
+            }}
+            {\normalsize{\textbf{Academic Year}}{\normalsize\vspace{1mm}
+    \\ \normalsize{2024/2053}}}  
+         \end{flushright}
+    \end{multicols}
+\end{minipage}
+
+\begin{center}
+    {\normalsize{\textbf{Summary}}{\normalsize\vspace{5mm}}}  
+\end{center}
+
+This Master's Thesis presents a comprehensive architectural transformation of an enterprise IT Service Request management platform. The research details the transition from a legacy system, known as SRP, to a modern, scalable, and intelligent architecture named \textbf{ServiceRequestManager (SRM)}. The project addresses deep-seated technical debt and structural limitations inherent in the original \textit{distributed monolithic} design, which had become difficult to maintain and scale.
+
+The initial analysis of the legacy SRP system identified several critical challenges that compromised its operational reliability. The user interface was an excessively complex monolithic Vue.js component exceeding 11,000 lines of code, where business logic was hard-coded into the presentation layer, making customizations nearly impossible without direct code intervention. Furthermore, the system relied heavily on an \textit{agent} installed on customer Domain Controllers, which introduced security risks and required elevated permissions. Data management was equally problematic, as core business logic was scattered across unversioned \textit{SQL Server Stored Procedures} and \textit{SSIS jobs}, while the database schema suffered from significant redundancy and a lack of referential integrity.
+
+To overcome these obstacles, the new SRM architecture was designed using a \textit{microservices-based approach} focused on modularity and scalability. The technological stack was modernized to include \textit{Django} and \textit{Django REST Framework} for the backend, with \textit{PostgreSQL} replacing MSSQL to ensure strict data integrity and consistency. The entire system is containerized via \textit{Docker} and orchestrated using \textit{Kubernetes}, enabling high availability, horizontal scaling, and zero-downtime deployments. By moving configuration and customization logic from the frontend to the backend, the user interface was reduced to approximately 1,000 lines, operating as a highly dynamic form builder driven by JSON definitions.
+
+A central innovation of the SRM system is the implementation of a \textit{three-level configuration hierarchy} involving Fields, Actions, and Customers. This structure allows for granular customization of service requests for specific clients without duplicating code or logic, ensuring a high degree of reusability. Additionally, the dependency on legacy agents was eliminated through the integration of an \textit{agentless provisioning tool} that leverages \textit{Ansible} to execute scripts remotely and securely. This shift not only improved security but also allowed for the versioning of all execution scripts within a centralized repository.
+
+Recognizing the need for business continuity, the thesis details a \textit{phased coexistence and migration strategy}. The architecture employs a \textit{dual-flow execution model} where individual actions can be routed either through the legacy SRP pipeline or the new SRM pipeline based on configuration. This enables a risk-managed transition through internal and customer pilots before full expansion and eventual decommissioning of the legacy infrastructure. Nightly synchronization jobs ensure that catalog and execution history data remains consistent across both systems during the migration period.
+
+The final major component of the work is the development of an \textit{intelligent recommendation system} to assist users in navigating a catalog that has grown to over 300 actions. This system utilizes \textit{Retrieval Augmented Generation (RAG)} combined with an on-premise large language model (GPT-OSS-120B) and a \textit{Chroma vector store}. By processing user queries in natural language, the system identifies the most relevant actions and provides transparent reasoning for its suggestions, thereby reducing the cognitive load on users and increasing trust in the automation. This integration demonstrates how modern software engineering can be successfully merged with generative AI to optimize complex IT operational workflo.
