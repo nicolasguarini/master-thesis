@@ -1,6 +1,6 @@
 \section{Current System Architecture}
 
-The \textit{SRP} system is fundamentally divided into two primary segments: 
+The \textit{SRP} system architecture is fundamentally distributed into two primary segments: 
 \begin{itemize}
     \item Company Network;
     \item Client Network.
@@ -24,19 +24,19 @@ The current \textit{SRP} system relies on a suite of interconnected components, 
 
 Elmec's Network Components:
 \begin{itemize}
-    \item \textbf{SRP Web Sevice REST} \cite{srp_webservicerest_git}:  This component, deployed on a Kubernetes cluster, exposes .NET Core RESTful services \cite{service_request_portal}. It serves as the primary interface for external systems such as:
+    \item \textbf{SRP Web Sevice REST} \cite{srp_webservicerest_git}:  Deployed on a Kubernetes cluster, exposes .NET Core RESTful services \cite{service_request_portal}. It serves as the primary interface for external systems such as:
     \begin{itemize}
-        \item \textbf{Delivery Portal}: An asset management system used to manage Service Request catalog configuration and Elmec's internal and client servers;
-        \item \textbf{HDA (HelpDeskAdvanced)}: A ticket management system. Each service request is intrinsically linked to an HDA ticket via an ID, and HDA is responsible for initiating and associating service requests with existing tickets.
-        \item \textbf{MyElmec}: A client-facing portal enabling customers to create, manage, and monitor the various services provided by Elmec (e.g., servers, management software, cloud solutions).
+        \item \textbf{Delivery Portal}: An internal asset management system used to manage Service Request catalog configuration and Elmec's internal and client servers;
+        \item \textbf{HDA (HelpDeskAdvanced)}: An internal ticket management system. Each service request is intrinsically linked to an HDA ticket via an ID, and HDA is responsible for initiating and associating service requests with existing tickets.
+        \item \textbf{MyElmec}: A customer-facing portal enabling customers to create, manage, and monitor the various services provided by Elmec (e.g., servers, management software, cloud solutions).
     \end{itemize}
     The \textit{SRP Web Service REST} communicates with the \textit{ELMEC-CMI-MSSQL} server.
     \item \textbf{ELMEC-CMI-MSSQL}: This server hosts the central SQL Server Database for the SRP system. It is the persistent storage layer for all service request data and related information \cite{service_request_portal}.
-    \item \textbf{S.S.I.S. (SQL Server Integration Services)}: Running on the ELMEC-CMI-MSSQL server, SSIS packages are crucial for data transformation and import/export operations. They facilitate the transfer of data, such as master data (e.g., Active Directory users, Organizational Units, groups) sent by SRP Agents, into the database. Each SSIS package is designed to transform the received information for database insertion or vice versa \cite{service_request_portal}.
-    \item \textbf{ELMEC-SRP01}: This Windows Server functions as the core engine for service requests within the Elmec network. It houses all the PowerShell scripts associated with individual service requests, which are maintained by the Platform team \cite{service_request_portal}. Key components residing on ELMEC-SRP01 include:
+    \item \textbf{S.S.I.S. (SQL Server Integration Services)}: Running on the \texttt{ELMEC-CMI-MSSQL} server, SSIS packages are crucial for data transformation and import/export operations. They handle the transfer of data, such as master data (e.g., Active Directory users, Organizational Units, AD Groups) sent by SRP Agents, into the database. Each SSIS package is designed to transform the received information for database insertion or vice versa \cite{service_request_portal}.
+    \item \textbf{ELMEC-SRP01}: This Windows Server functions as the core engine for service requests within the Elmec network. It houses all the PowerShell scripts associated with individual service requests, which are maintained by the MxS (Managed Services) team \cite{service_request_portal}. Key components residing on \texttt{ELMEC-SRP01} include:
     \begin{itemize}
-        \item \textbf{SRP WebServiceSoap}: This component provides SOAP services primarily for communication with the SRP Agent located on the client side. It interacts with the database to retrieve necessary information before exposing it to the agents for service request execution \cite{srp_webservice_git}.
-        \item \textbf{SRP InternalWorker}: A Windows service that operates similarly to the SRP Agent but executes entirely within the Elmec network. This is utilized for service requests that do not require interaction with the client's network or Active Directory (e.g., "no patch" service requests). The InternalWorker queries the database every 10 seconds for "internal worker" type jobs (like removing a server from a patching session, or resetting a managed Virtual Machine), connects to the SOAP service, retrieves the Service Request ID and its fields, and initiates job execution. It also monitors logs every 30 seconds to determine the job's status \cite{srp_internalworker_git}.
+        \item \textbf{SRP WebServiceSoap}: This component provides SOAP services primarily for communication with the SRP Agent located on the client side. It interacts with the database to retrieve necessary information before exposing it to the agents for Service Request execution \cite{srp_webservice_git}.
+        \item \textbf{SRP InternalWorker}: A Windows service that operates similarly to the SRP Agent but executes entirely within the Elmec network. This is utilized for service requests that do not require interaction with the client's network or Active Directory (e.g., managed VM-related service requests). The InternalWorker queries the database every 10 seconds for "internal worker" type jobs (like removing a server from a patching session, or resetting a managed Virtual Machine), connects to the SOAP service, retrieves the Service Request ID and its fields, and initiates job execution. It also monitors logs every 30 seconds to determine the job's status \cite{srp_internalworker_git}.
     \end{itemize}
 \end{itemize}
 
@@ -44,20 +44,20 @@ The only component in the client's network is called \textbf{Domain Controller},
 \begin{itemize}
     \item \textbf{SRP Agent (.NET Windows Service)}: Typically, one agent is configured per client domain, specifically for Active Directory (AD) and Exchange-related service requests. This agent performs two main functions \cite{srp_windowsservice_git}:
     \begin{itemize}
-        \item Every 8 hours, it reads master data (AD users, OUs, groups) from the domain controller and sends it to ELMEC-SRP01 for storage via SSIS.
-        \item Every 5 minutes, it queries ELMEC-SRP01 for pending Service Requests. Upon finding any, it requests detailed information, loads the corresponding PowerShell script, and executes it. After initiating the script, the agent informs ELMEC-SRP01 that the SR is "running" and proceeds to the next SR.
+        \item Every 8 hours, it reads master data (AD users, OUs, groups) from the domain controller and sends it to \texttt{ELMEC-SRP01} for storage via SSIS.
+        \item Every 5 minutes, it queries \texttt{ELMEC-SRP01} for pending Service Requests. Upon finding any, it requests detailed information, loads the corresponding PowerShell script, and executes it. After initiating the script, the agent informs \texttt{ELMEC-SRP01} that the SR is "running" and proceeds to the next SR.
     \end{itemize}
     
-    \item \textbf{SRP Agent Updator (.NET Windows Service)}: This service continuously monitors the SRP Agent folder for a file with a .new extension. If detected, it stops the SRP Agent, updates it, and restarts it
+    \item \textbf{SRP Agent Updator (.NET Windows Service)}: This service continuously monitors the SRP Agent folder for a file with a \texttt{.new} extension. If detected, it stops the SRP Agent, updates it, and restarts it
 \end{itemize}
 
 \subsection{Interactions and Communication between Customers and Company networks}
-The Communication between the company network and the clients' networks is a critical aspect of the SRP system's operations and is handled through the \textbf{DMI Console}.
+The Communication between the company network and the customers' networks is a critical aspect of the SRP system's operations and is handled through the \textbf{DMI Console} \cite{service_request_portal}.
 
 The DMI console serves as a key infrastructural component, primarily acting as a communication bridge between the customer's network and Elmec's internal network. Specifically, for the SRP system, the DMI console is responsible for transferring service requests (SR) from the customer's network to Elmec's internal network, although it does not handle traffic in the opposite direction \cite{dmi_infrastructure_git}.
 
 \subsubsection{Operation of the DMI Console}
-The connectivity of the DMI appliances to Elmec is established through multiple OpenVPN connections, initiated by the appliance towards the Brunello 4 and Mendrisio Data Centers (for Swiss customers). The DMI consoles are not directly exposed to the Internet and are accessible only by authorized personnel. Hardware requirements for a DMI node include 4 GB of RAM, 4 cores, and 50 GB of disk space \cite{dmi_infrastructure_git}.
+The connectivity of the DMI appliances to Elmec is established through multiple OpenVPN connections, initiated by the appliance towards the Brunello 4 and Mendrisio Data Centers (for Swiss customers). The DMI consoles are not directly exposed to the Internet and are accessible only by authorized personnel \cite{dmi_infrastructure_git}.
 
 Following recent developments in the DMI, the new consoles use K3S for container management. K3S is a lightweight, certified Kubernetes distribution designed for edge, IoT, and CI/CD environments. It is characterized by being a single binary that reduces external dependencies and uses SQLite as the default database, greatly simplifying installation and management. It already includes essential components such as \textit{containerd} \cite{k3s}.
 
