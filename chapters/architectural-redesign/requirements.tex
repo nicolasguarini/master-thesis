@@ -1,13 +1,16 @@
 \section{New System Requirements}
-The system can be divided into three main components: \textbf{Catalog Structure and Management}; \textbf{Service Request Execution}, and \textbf{Master Data Import}.
+The system can be divided into three main components: 
+\begin{itemize}
+  \item \textbf{Catalog} (Structure and Management);
+  \item \textbf{Service Request Execution};
+  \item \textbf{Master Data Import / Export}.
+\end{itemize} 
 The requirements for each of these areas will therefore be analyzed.
 
 \subsection{Catalog Structure and Management}
 This is the most substantial component of the three, dealing with everything concerning the definition, maintenance, and configuration of the actions executable by each customer. This therefore also includes the management of form fields, customer-specific customizations, scripts, their parameters, the target machine address retrieval logic, and so on.
 
-Before proceeding with the analysis of the requirements, a clarification on the terminology to be used is necessary: 
-an '\textit{Action}' is understood as the formal definition of an operation that a client can execute on its infrastructure; 
-a '\textit{Service Request}' (SR), on the other hand, is understood as the effective execution of an Action. 
+Like mentioned in the first chapter's introduction, an '\textit{Action}' is understood as the formal definition of an operation that a client can execute on its infrastructure, while a '\textit{Service Request}' (SR), on the other hand, is understood as the effective execution of an Action. 
 If a parallel with OOP is to be drawn, the Action can be seen as a class, and the Service Request as an object, an instance of the aforementioned class.
 
 \subsubsection{Actions}
@@ -20,11 +23,11 @@ The Action entity can be seen as the core of the catalog component, and it is co
   \item The target machine on which the script must be executed.
 \end{itemize}
 
-Some of these dynamics are already implemented in the current system (with all the critical issues of the case, as already discussed in the previous chapter), while others are not. The crucial point, however, is that all these configuration aspects must be customizable for specific customers and for specific actions \cite{requirements_meeting}. 
+Some of these dynamics are already implemented in the current system (with all the already discussed issues), while others are not. The crucial point, however, is that all these configuration aspects must be customizable for specific customers and for specific actions \cite{requirements_meeting}.
 
 Given that the users of this system are very large clients (Fendi, Valentino, Lavazza, to name a few), it is easy to imagine that each of them has highly specific needs, which make direct reuse of Actions across multiple clients impossible. At the same time, however, the creation of infinite duplicated Actions that share almost everything, with only small differences (as happens in the current system \cite{requirements_meeting}), must be avoided. 
 
-It is therefore necessary to implement a system that provides for the possibility of defining a sort of hierarchical structure, where a "parent" action is configured, which can be "inherited" by several child actions that will specify only the modifications, all without affecting the default action.
+It is therefore necessary to implement a system that provides for the possibility of defining a sort of hierarchical structure, where a "parent" action is configured, which can be "inherited" by several child actions that will specify only the modifications, all without affecting the "default" action.
 
 \subsubsection{Fields}
 Together with actions, fields are central components on which a large part of the system is based. 
@@ -42,7 +45,7 @@ Regarding "particular" field types, the system must provide for \cite{requiremen
   \item Select fields whose options are customer-specific (e.g., "Domain" field, which is a select with all the customer's domains);
   \item Select fields whose options are global for the entire system (e.g., "Country" field, which provides a list of states that are the same for all customers);
   \item Select fields whose options are customer-specific and to obtain them an external service must be contacted, with the possible option to search (e.g., "Server" field, which is a select with all the customer's servers, returned by the Atlantis CMDB service);
-  \item Autofilled text fields, meaning their values are obtained through a templating system (Jinja) that uses the values of other fields (e.g., "Logon Name" field, populated by concatenating the user's first and last name separated by, for example, a dot);
+  \item Autofilled text fields, meaning their values are obtained through a templating system (e.g., Jinja) that uses the values of other fields (e.g., "Logon Name" field, populated by concatenating the user's first and last name separated by, for example, a dot);
   \item Text fields whose validation occurs through regex (e.g., "Date" field, which must comply with the standard format);
   \item Text fields whose validation occurs through an external service (e.g., "Logon Name" field, which requires contacting the relevant Active Directory service for validation that a user with the same logon name does not already exist);
   \item Fields with sensitive values, whose values will therefore need to be saved encrypted, using some symmetric encryption algorithm (e.g., "Password" field);
@@ -90,8 +93,8 @@ A constraint that must be respected, however, is that the action scripts are all
 
 \subsection{Master Data Import}
 Another important component of the system is the one responsible for importing customer master data, necessary for populating some action fields (e.g., UPN domains, user accounts, groups, Organizational Units (OU)\footnote{In Windows Server, an
-Organizational Unit (OU) is a container within Active Directory (AD) used to logically group objects like user accounts, computer accounts, and security groups, similar to a folder in a file system \cite{ou}.}, databases, etc.). The main difficulty lies in the fact that this information physically resides on the customers' machines (large enterprise clients, with thousands of user accounts and groups, are being discussed), and therefore their retrieval in real-time is not immediate. 
+Organizational Unit (OU) is a container within Active Directory (AD) used to logically group objects like user accounts, computer accounts, and security groups, similar to a folder in a file system \cite{ou}.}, databases, etc.). The main difficulty lies in the fact that this information physically resides on the customers' machines (large enterprise clients, with thousands of user accounts and groups), and therefore their retrieval in real-time is not immediate. 
 
-In the current system, this import occurs in a manner very similar to the SR scenario, but in reverse. It happens through an agent running on the customers' DCs, which periodically (hourly) (downloads and) executes a series of PowerShell scripts to retrieve the necessary information, and deposits them in a specific system folder (\texttt{D:\textbackslash SRPortal\textbackslash Anag\textbackslash}) \cite{srp_windowsservice_git}. These files are then consumed by an SSIS job (one for each type of master data) that imports them into the database. The REST services then expose APIs to retrieve this information, which are used by the frontend to populate the action fields \cite{srp_webservicerest_git}.
+In the current system, this import occurs in a manner very similar to the SR scenario, but in reverse. It happens through an agent running on the customers' DCs, which periodically (every hour at :20) (downloads and) executes a series of PowerShell scripts to retrieve the necessary information, and deposits them in a specific system folder (\texttt{D:\textbackslash SRPortal\textbackslash Anag\textbackslash}) \cite{srp_windowsservice_git}. These files are then consumed by an SSIS job (one for each type of master data) that imports them into the database. The REST services then expose APIs to retrieve this information, which are used by the frontend to populate the action fields \cite{srp_webservicerest_git}.
 
 In the new system, it will be necessary to redesign this flow as well, in order to eliminate the dependence on agents on customer DCs. Even in this case, however, the PowerShell scripts cannot be modified \cite{requirements_meeting}, and must be executed as they are now. It will therefore be necessary to analyze how to integrate the execution of these scripts into the new flow, perhaps also leveraging Elmec's internal \textit{provisioning} system (\textit{Provision Prime} \cite{provision_prime_git}) in this case, in order to obtain a more traceable, reliable, and efficient system \cite{requirements_meeting}.

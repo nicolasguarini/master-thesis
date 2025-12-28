@@ -1,12 +1,12 @@
 \section{New System Architecture}
 
-After gathering and defining the requirements for the new \textit{ServiceRequestManager (SRM)} system through various meetings with stakeholders and analysis of the current system (SRP), it has been possible to design a new architecture for the system that allows for efficient and scalable satisfaction of these requirements.
+After gathering and defining the requirements for the new \textit{ServiceRequestManager (SRM)} system through various meetings with stakeholders and a deep analysis of the current system (SRP), it has been possible to design a new architecture for the system that allows for efficient and scalable satisfaction of these requirements.
 
 The proposed new architecture for the SRM system, shown in Figure \ref{fig:new-system-architecture}, is based on a \textbf{microservices architecture}, which allows for greater modularity, scalability, and ease of maintenance compared to the distributed-monolithic architecture of the current SRP system \cite{from_monolithic_architecture_to_microservices_architecture}.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=1\textwidth]{images/architectural-redesign/System Design SRM.jpg}
+    \includegraphics[width=1\textwidth]{images/architectural-redesign/System Design SRM with MINIO.png}
     \caption{SRM System Architecture}
     \label{fig:new-system-architecture}
 \end{figure}
@@ -18,27 +18,27 @@ The SRM system architecture is composed of the following main components.
 \subsubsection{Frontend}
 Two separate web frontends will be developed for end-users and system administrators. These frontends will communicate with the REST services via HTTP/HTTPS APIs.
 
-Due to the business logic being moved to the REST services, the frontends will be lighter and easier to maintain, allowing for greater flexibility in implementing new functionalities and user interface improvements \cite{benefits_issues_micro_frontends}. This also allows for the future integration of a mobile application, which can use the same APIs.
+Due to the business logic being moved to the REST services, the frontends will be lighter and easier to maintain, allowing for greater flexibility in implementing new functionalities and user interface improvements \cite{benefits_issues_micro_frontends}. This also allows for the future integration of the (already existing) mobile application, which can use the same APIs.
 
 \subsubsection{REST Services}
-REST (Representational State Transfer) is an architectural style for designing web services that leverages HTTP protocols for communication between client and server \cite{rest}. The basic idea is that a system's resources (users, orders, documents, etc.) are exposed through a uniform interface, typically HTTP, using \cite{rest}:
+REST (Representational State Transfer) is an architectural style for designing web services that leverages HTTP protocols for communication between client and server \cite{rest}. The basic idea is that a system's resources are exposed through a uniform interface, typically HTTP, using \cite{rest}:
 \begin{itemize}
  \item URLs to identify resources (e.g., \texttt{/api/catalog/actions/123/});
  \item HTTP verbs to operate on resources (\texttt{GET}, \texttt{POST}, \texttt{PUT}, \texttt{DELETE}, ...);
- \item Representations of resources in standard formats (JSON, XML, ...).
+ \item Representations of resources in standard formats (JSON).
 \end{itemize}
 
 These services will be responsible for business logic, user request management, and interaction with databases and other system components.
 
 \subsubsection{Authentication and Authorization System}
-Authentication and authorization will be managed through the internally developed library, PyElmecAuth or GoElmecAuth (depending on the implementation language), which will interface with the corporate identity management system to ensure secure and controlled access to the REST services.
+Authentication and authorization will be managed through the internally developed library, PyElmecAuth or GoElmecAuth (depending on the implementation language), which will interface with the corporate identity management system (ADFS) to ensure secure and controlled access to the REST services.
 
 It will therefore be necessary to integrate a granular permission system into SRM to ensure that users can only access the resources and functionalities for which they are authorized, based on the roles defined by the corporate Identity Provider.
 
 \subsubsection{Caching System}
 A caching system will be required to improve system performance and reduce the load on the databases.
 
-In particular, responses from calls to external services will be cached, such as third-party APIs needed to validate some fields, or calls to retrieve customer information, to reduce response times and improve the user experience. The time-to-live (TTL) of the caches must be configurable based on the specific needs of each data type.
+In particular, responses from calls to external services will need to be cached, such as third-party APIs needed to validate some fields, or calls to retrieve customer information, to reduce response times and improve the user experience. The time-to-live (TTL) of the caches must be configurable based on the specific needs of each data type.
 
 \subsubsection{Message Broker and Task Queue}
 To manage asynchronous operations and improve system scalability, a Message Broker (e.g., RabbitMQ, Apache Kafka, Redis, \dots) will be used in combination with a Task Queue (e.g., Celery).
