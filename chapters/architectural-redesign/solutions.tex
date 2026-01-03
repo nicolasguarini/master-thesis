@@ -6,7 +6,7 @@ These interventions concerned various aspects of the system, from restructuring 
 The adoption of an approach based on containerization (with Docker) and orchestration (with Kubernetes, often abbreviated as K8s) forms the foundation for overcoming the current architectural and technological limitations of the SRP system. This transition not only directly addresses issues of modularity, isolation, and dependency management but also paves the way for a more modern and scalable architecture, such as microservices or micro-frontends. Specifically, it aims to solve the problems of fragmentation, dependency complexity, and maintenance difficulties inherited from the previous monolithic architecture and the agent installed at the customer's site.
 
 \subsubsection{Containerization with Docker}
-Docker is a containerization platform that allows developers to package applications and all their dependencies (libraries, configurations, environments) into a single, standardized unit called a container. As illustrated in figure \ref{fig:docker-containers}, these containers are isolated from each other but share the host operating system's kernel, making them extremely lightweight and portable.
+Docker is a containerization platform that allows developers to package applications and all their dependencies (libraries, configurations, environments) into a single, standardized unit called a container \cite{docker_doc}. As illustrated in figure \ref{fig:docker-containers}, these containers are isolated from each other but share the host operating system's kernel, making them extremely lightweight and portable.
 
 \begin{figure}[htbp]
     \centering
@@ -15,14 +15,14 @@ Docker is a containerization platform that allows developers to package applicat
     \label{fig:docker-containers}
 \end{figure}
 
-The use of Docker resolves the "works on my machine but not in production" problem (known as "dependency hell") \cite{docker_swe} and provides a solid foundation for component decoupling. Each component (frontend, backend, support services) will be enclosed in a \textit{Docker container}, and ensures that the execution environment (including libraries, configurations, and dependencies) is identical across development, testing, and production \cite{docker_swe}. 
-This eliminates errors caused by environmental discrepancies.
+The use of Docker resolves the "works on my machine but not in production" problem (known as "dependency hell") \cite{docker_swe} and provides a solid foundation for \textit{component decoupling}. Each component (frontend, backend, support services) will be enclosed in a \textit{Docker container}, and ensures that the execution environment (including libraries, configurations, and dependencies) is identical across development, testing, and production \cite{docker_swe}. 
+This eliminates errors caused by environmental discrepancies \cite{docker_swe}.
 
-Once created, the container can be run anywhere Docker is present (in our case, container orchestration is managed by Kubernetes, which will be discussed in the next subsection), simplifying the deployment process. 
-The system thus becomes extremely more portable, moving away from the strict dependence on specific operating systems and hardware configurations like, in this case, Windows Server and Microsoft SQL Server.
+Once created, the container can be run anywhere Docker is present (in our case, container orchestration is managed by \textit{Kubernetes}, which will be discussed in section \ref{sec:orchestration-kube}), simplifying the deployment process. 
+The system thus becomes extremely more portable, moving away from the strict dependency on specific operating systems and hardware configurations like, in this case, Windows Server and Microsoft SQL Server.
 
-\subsubsection{Orchestration with Kubernetes}
-Kubernetes (K8s) is an open-source system for automated container orchestration, originally developed by Google. Its purpose is to manage entire fleets of Docker containers in a \textit{cluster}, ensuring that applications are always available, scalable, and resilient \cite{kubernetes}.
+\subsubsection{Orchestration with Kubernetes}\label{sec:orchestration-kube}
+Kubernetes (K8s) is an open-source system for \textit{automated container orchestration}, originally developed by Google. Its purpose is to manage entire fleets of Docker containers in a \textit{cluster}, ensuring that applications are always available, scalable, and resilient \cite{kubernetes}.
 
 If Docker provides the mechanism for creating and distributing containers, Kubernetes is its natural complement, handling their large-scale management (\textit{orchestration}), transforming the infrastructure from a set of single machines into a centrally managed cluster \cite{kubernetes}.
 
@@ -30,17 +30,17 @@ K8s allows components to scale horizontally based on the workload (via the Horiz
 
 In parallel, it constantly monitors the status of the containers. If a component fails, K8s automatically restarts it or schedules a new one on a healthy node in the cluster, ensuring high availability and resolving the single-point-of-failure problem introduced by the current dependence on single servers and the agent \cite{kube_book}. 
 
-Kubernetes also supports advanced deployment strategies (e.g., Rolling Updates), allowing code updates without service interruptions (zero-downtime deployment) \cite{kube_book}. In case of issues, rolling back to the previous version is fast and automated. This mitigates the risk associated with system changes.
+Kubernetes also supports advanced deployment strategies (e.g., Rolling Updates), allowing code updates without service interruptions (\textit{zero-downtime deployment}) \cite{kube_book}. In case of issues, rolling back to the previous version is fast and automated. This mitigates the risk associated with system changes.
 
 Finally, K8s also offers native mechanisms to manage environment variables and sensitive data (such as database credentials or external service authentication tokens) separately from the container code \cite{kube_book}. This centralizes management and increases security, eliminating the numerous hard-coded configurations present in the old system and making the containers more generic.
 
-The adoption of Docker and Kubernetes therefore creates the ideal environment for the subsequent decomposition of the frontend monolith and the re-engineering of the various backend components, topics that will be covered in detail in the following sections.
+The adoption of Docker and Kubernetes therefore creates the ideal environment for the subsequent decomposition of the frontend monolith and the re-engineering of the various distributed-monolithic backend components, topics that will be covered in detail in the following sections.
 
 \subsubsection{Monolithinc Frontend Component}
 At a technological level, the chosen technology did not change compared to the existing system, which is Vue.js. However, Vue.js version 3 was used, which introduces numerous improvements compared to version 2 used in the existing system, including better performance management, a more flexible composition system, and improved support for TypeScript \cite{vue3}.
 In fact, in addition to the updated version of Vue.js, it was decided to adopt TypeScript as the development language for the frontend, in order to improve code maintainability and quality \cite{typescript}.
 
-\paragraph{TypeScript} Developed in 2012 by Microsoft as free and open-source software (Apache License 2.0) \cite{typescript}, TypeScript extends JavaScript's functionalities by introducing optional static typing. The main advantage is that,  unlike JavaScript, where type errors are detected only at runtime, TypeScript allows most errors to be caught already at the \textit{build time} stage. This ensures greater code robustness and a significant reduction in production bugs. For extended projects like this one (the Service Requests component is actually only a part of a much larger customer-dedicated platform called \textit{MyElmec}), static typing significantly improves code maintainability and readability, acting as a form of implicit documentation and allowing for safer and faster refactoring.
+\paragraph{TypeScript} Developed in 2012 by Microsoft as free and open-source software (Apache License 2.0) \cite{typescript}, TypeScript extends JavaScript's functionalities by introducing (optional) static typing. The main advantage is that, unlike JavaScript, where type errors are detected only at runtime, TypeScript allows most errors to be caught already at the \textit{build time} stage. This ensures greater code robustness and a significant reduction in production bugs. For extended projects like this one (the Service Requests component is actually only a part of a much larger customer-dedicated platform called \textit{MyElmec}), static typing significantly improves code maintainability and readability, acting as a form of implicit documentation and allowing for safer and faster refactoring.
 
 To solve the maintainability and scalability problems of the existing monolithic frontend, it was decided to move all the configuration and customization logic for field behavior (autofill, dynamic fields via external APIs, validation, dependencies, etc.) to the backend (a topic that will be explored in section \ref{sec:solution-generic-rest-service}).
 In this way, the frontend was transformed into a simple interface for display and user interaction (as it should be), significantly reducing code complexity and facilitating the implementation of new functionalities.
@@ -130,7 +130,7 @@ To solve the issues related to the frontend, a deep restructuring of the backend
 \label{lst:example-srm-field-data}
 \end{listing}
 
-In addition to modeling all possible properties of a field in a clear and structured way, the new REST services are also responsible for managing all the customization and configuration logic of the fields, with a three-level structure (which will be detailed in the chapter, dedicated to implementation aspects):
+In addition to modeling all possible properties of a field in a clear and structured way, the new REST services are also responsible for managing all the customization and configuration logic of the fields, with a three-level structure (which will be detailed in chapter \ref{sec:chapter-implementation}, dedicated to implementation aspects):
 
 \begin{enumerate}
     \item Fields

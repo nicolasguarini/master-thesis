@@ -41,7 +41,7 @@ A caching system will be required to improve system performance and reduce the l
 In particular, responses from calls to external services will need to be cached, such as third-party APIs needed to validate some fields, or calls to retrieve customer information, to reduce response times and improve the user experience. The time-to-live (TTL) of the caches must be configurable based on the specific needs of each data type.
 
 \subsubsection{Message Broker and Task Queue}
-To manage asynchronous operations and improve system scalability, a Message Broker (e.g., RabbitMQ, Apache Kafka, Redis, \dots) will be used in combination with a Task Queue (e.g., Celery).
+To manage asynchronous operations and improve system scalability, a Message Broker (e.g., RabbitMQ, Apache Kafka, \dots) will be used in combination with a Task Queue (e.g., Celery).
 
 This is necessary as the SR lifecycle is very complex and involves many operations that can require long execution times \cite{azioni_gestione_srp}, such as sending emails, maintaining HDA\footnote{HDA (Help Desk Advanced) is a web-based ticketing and service management system developed by Zucchetti. It enables organizations to manage tickets, incidents, and support processes through a centralized platform \cite{hda}.} tickets, integration with external systems, etc. By using a messaging and task queue system, these operations can be executed in the background, without blocking the application's main flow \cite{queue_model_relating_sync_async_communication}.
 
