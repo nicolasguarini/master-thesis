@@ -54,13 +54,13 @@ Large Language Models have emerged as powerful tools for natural language unders
 
 Large Language Models are neural networks trained on massive text corpora using self-supervised learning objectives, typically predicting the next token in a sequence given preceding context. Modern LLMs such as GPT-4 \cite{openai2024gpt4technicalreport}, Claude \cite{anthropic2024claude}, and open-source alternatives like Llama \cite{touvron2023llamaopenefficientfoundation} employ transformer architectures \cite{vaswani2023attentionneed} with billions of parameters, enabling them to capture complex patterns in language use and world knowledge encoded in their training data.
 
-The transformer architecture, introduced by Vaswani et al. \cite{vaswani2023attentionneed}, revolutionized natural language processing through its attention mechanism that enables models to weigh the relevance of different parts of the input when generating outputs. This architecture allows LLMs to maintain context over long sequences and capture relationships between distant tokens, essential capabilities for understanding complex user queries and catalog descriptions.
+The transformer architecture, introduced by Vaswani et al. \cite{vaswani2023attentionneed}, revolutionized natural language processing through its attention mechanism that enables models to weigh the relevance of different parts of the input when generating outputs. This architecture allows LLMs to maintain context over long sequences and capture relationships between distant tokens \cite{vaswani2023attentionneed}, essential capabilities for understanding complex user queries and catalog descriptions.
 
 Training these models typically follows a two-phase approach: pre-training on large-scale unlabeled text data using language modeling objectives, followed by fine-tuning on task-specific datasets or instruction-following examples \cite{ouyang2022traininglanguagemodelsfollow}. Recent advances in instruction tuning and reinforcement learning from human feedback (RLHF) have significantly improved LLMs' ability to follow complex instructions and generate responses aligned with human preferences \cite{ouyang2022traininglanguagemodelsfollow}.
 
 For the SRM recommendation system, the selected model is GPT-OSS-120B, a 120-billion parameter open-source model deployed on-premise within the company infrastructure. This deployment strategy addresses several enterprise requirements: data privacy concerns by ensuring that user queries and catalog information never leave the corporate network; compliance with regulatory frameworks prohibiting transmission of potentially sensitive service request descriptions to external API providers; cost control by eliminating per-request API fees; and customization potential through fine-tuning on company-specific data.
 
-In addition, the system uses all-mpnet-base-v2 as the embedding model for semantic representation of service requests and catalog items. This model is also deployed on-premise, ensuring consistent privacy guarantees and tight integration with the internal infrastructure.
+In addition, the system uses \texttt{all-mpnet-base-v2} as the \textit{embedding model}\footnote{An embedding model is a model that maps discrete symbols (text, images, code) into continuous vector spaces, making similarity and distance computations possible \cite{karpukhin2020densepassageretrievalopendomain}.} for semantic representation of service requests and catalog items. This model is also deployed on-premise, ensuring consistent privacy guarantees and tight integration with the internal infrastructure.
 
 \subsection{LLMs for Intent Understanding and Action Selection}
 
@@ -72,9 +72,9 @@ The application of LLMs to the action recommendation task leverages several of t
 
 \textbf{Handling Underspecified Queries:} Users often provide incomplete descriptions that nonetheless contain sufficient context for a human to infer intent. A query like "new user setup" might implicitly require account creation, mailbox provisioning, group memberships, and license assignment depending on organizational context. LLMs can leverage patterns learned during training to infer these implicit requirements and recommend comprehensive action sets.
 
-\textbf{Multi-Turn Refinement Potential:} While the current implementation focuses on single-turn recommendations, LLMs enable future extensions to conversational interfaces where the system can ask clarifying questions ("Does the user need Office 365 access?" or "Is this a temporary or permanent account?") to narrow down recommendations. This capability emerges naturally from LLMs' instruction-following abilities without requiring explicit dialogue state tracking logic.
+\textbf{Multi-Turn Refinement Potential:} While the current implementation focuses on single-turn recommendations, LLMs enable future extensions to \textit{conversational} interfaces where the system can ask clarifying questions ("Does the user need Office 365 access?" or "Is this a temporary or permanent account?") to narrow down recommendations. This capability emerges naturally from LLMs' instruction-following abilities without requiring explicit dialogue state tracking logic.
 
-\textbf{Reasoning and Explanation Generation:} LLMs can generate natural language explanations for their recommendations, a critical requirement for enterprise deployment. By prompting the model to articulate why a particular action matches the user's query, the system produces human-readable justifications that build trust and enable error correction.
+\textbf{Reasoning and Explanation Generation:} LLMs can generate natural language explanations for their recommendations, a critical requirement for enterprise deployment \cite{madabhushini2025explainable}. By prompting the model to articulate why a particular action matches the user's query, the system produces human-readable justifications that build trust and enable error correction.
 
 \subsection{Limitations of Naked LLMs}
 
@@ -111,11 +111,24 @@ The RAG architecture typically consists of three primary components:
     \item \textbf{Generator:} A Large Language Model that receives both the original query and the retrieved documents, using this augmented context to generate the final output. In SRM's case, ranked action recommendations with explanatory reasoning.
 \end{enumerate}
 
-This architecture provides several fundamental advantages over pure parametric models: knowledge can be updated by modifying the document store without retraining the LLM; the system can scale to arbitrarily large knowledge bases by improving retrieval efficiency rather than increasing model size; and generation is grounded in specific source documents, enabling attribution and verification.
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{images/rag/simple-rag-architecture.jpg}
+    \caption{Simplified Architecture of a RAG-enhanced LLM system (source: \cite{ragdatabricks})}
+    \label{fig:simple-rag-architecture}
+\end{figure}
+
+This architecture, represented in a simplified form in Figure \ref{fig:simple-rag-architecture} and in a more detailed form in Figure \ref{fig:detailed-rag-architecture}, provides several fundamental advantages over pure parametric models: knowledge can be updated by modifying the document store without retraining the LLM; the system can scale to arbitrarily large knowledge bases by improving retrieval efficiency rather than increasing model size; and generation is grounded in specific source documents, enabling attribution and verification.
 
 \subsection{How RAG Works}
+The RAG process for action recommendation in SRM follows a multi-stage pipeline that transforms user queries into grounded recommendations through retrieval and generation phases. Represented in a detailed form in Figure \ref{fig:detailed-rag-architecture}, the pipeline consists of five primary components organized into initialization and inference phases.
 
-The RAG process for action recommendation in SRM follows a multi-stage pipeline that transforms user queries into grounded recommendations through retrieval and generation phases.
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{images/rag/langchain-detailed-rag-architecture.png}
+    \caption{Detailed Architecture of a RAG-enhanced LLM system (source: LangChain AI \cite{langchain-rag-from-scratch})}
+    \label{fig:detailed-rag-architecture}
+\end{figure}
 
 \subsubsection{Document Embedding and Indexing}
 
@@ -123,7 +136,7 @@ The first phase, typically executed offline during system initialization, involv
 
 Embedding models are neural networks trained to encode semantic similarity: texts with similar meanings should have embedding vectors that are close in the resulting vector space (typically measured by cosine similarity or Euclidean distance). Modern embedding models like sentence-transformers \cite{reimers2019sentencebertsentenceembeddingsusing} are trained on large datasets of text pairs with similarity labels, learning to capture semantic relationships beyond superficial lexical overlap.
 
-The generated embeddings are stored in a vector database (the system uses Chroma \cite{chroma2023}), which indexes vectors using approximate nearest neighbor algorithms (such as HNSW \cite{malkov2018efficientrobustapproximatenearest}) that enable sub-linear time retrieval even as the catalog scales to thousands of actions. This indexing is critical for interactive performance: exact nearest neighbor search would require computing similarity between the query and every catalog action, while approximate algorithms achieve >95\% recall with orders of magnitude better performance.
+The generated embeddings are stored in a vector database \cite{karpukhin2020densepassageretrievalopendomain} (the system uses Chroma \cite{chroma2023}), which indexes vectors using approximate nearest neighbor algorithms (such as HNSW \cite{malkov2018efficientrobustapproximatenearest}) that enable sub-linear time retrieval even as the catalog scales to thousands of actions. This indexing is critical for interactive performance: exact nearest neighbor search would require computing similarity between the query and every catalog action, while approximate algorithms achieve >95\% recall with orders of magnitude better performance.
 
 \subsubsection{Query Embedding and Semantic Retrieval}
 
@@ -131,7 +144,7 @@ When a user submits a service request description, the system first embeds the q
 
 The vector database then performs approximate nearest neighbor search to identify the top-k most similar catalog actions to the query. This retrieval is semantic rather than lexical: the query "I need to recover a deleted email" can retrieve actions related to "Mailbox Recovery" or "Restore Email Items" even if the exact words differ, because the embedding model has learned that these phrases are semantically related through its training data.
 
-The retrieval phase typically returns 5-10 candidate actions, balancing between providing sufficient context to the LLM and avoiding context window overflow. These candidates form the retrieval set that will be incorporated into the generation prompt.
+The retrieval phase typically returns 1-5 candidate actions, balancing between providing sufficient context to the LLM and avoiding context window overflow. These candidates form the retrieval set that will be incorporated into the generation prompt.
 
 \subsubsection{Context Construction and Prompt Engineering}
 
@@ -169,11 +182,11 @@ The RAG architecture addresses the fundamental limitations of unaugmented LLMs i
 
 \textbf{Transparent Attribution:} RAG recommendations can be attributed to specific catalog entries present in the retrieval context. For each recommended action, the system can point to the exact catalog document that was retrieved and the properties that influenced the match. This transparency supports auditability requirements and enables users to verify that recommendations are based on actual catalog content.
 
-\textbf{Reduced Computational Requirements:} While RAG introduces a retrieval phase, it often reduces overall computational costs by narrowing the LLM's consideration space. Rather than processing the entire catalog (300+ actions) in the prompt, the system provides only the top-k most relevant candidates (typically 5-10), reducing prompt length and inference time. For extremely large catalogs, this filtering becomes essential for practical deployment.
+\textbf{Reduced Computational Requirements:} While RAG introduces a retrieval phase, it often reduces overall computational costs by narrowing the LLM's consideration space. Rather than processing the entire catalog (300+ actions) in the prompt, the system provides only the top-k most relevant candidates (typically 1-5), reducing prompt length and inference time. For extremely large catalogs, this filtering becomes essential for practical deployment.
 
 \textbf{Handling of Specialized Vocabulary:} The retrieval phase, operating over catalog-specific text representations, naturally handles company-specific terminology, technical jargon, and naming conventions that may be poorly represented in the LLM's training data. Even if the LLM has never seen terms like "Privileged User Account" during pre-training, the retriever can match queries containing these terms to relevant catalog entries, with the LLM then leveraging its general language understanding to generate appropriate reasoning.
 
-\textbf{Separation of Concerns:} RAG architectures cleanly separate the semantic matching problem (retrieval) from the ranking and explanation problem (generation). This modularity enables independent optimization of each component: improving retrieval quality through better embedding models or indexing strategies, and enhancing explanation quality through prompt engineering or model selection, without requiring coordinated changes across the system.
+\textbf{Separation of Concerns:} RAG architectures cleanly separate the semantic matching problem (retrieval) from the ranking and explanation problem (generation) \cite{lewis2021retrievalaugmentedgenerationknowledgeintensivenlp}. This modularity enables independent optimization of each component: improving retrieval quality through better embedding models or indexing strategies, and enhancing explanation quality through prompt engineering or model selection, without requiring coordinated changes across the system.
 
 The combination of these capabilities makes RAG the architecture of choice for the SRM recommendation system, balancing the flexibility and semantic understanding of LLMs with the reliability and updatability requirements of enterprise production systems.
 
@@ -288,7 +301,7 @@ The current implementation adopts an on-demand embedding strategy where the comp
 
 The SRM catalog for a typical customer contains 200-400 actions after configuration hierarchy resolution. Modern sentence transformer models like all-MiniLM-L6-v2 can embed text sequences at rates exceeding 1000 sequences/second on modern GPUs or 100+ sequences/second on CPU-only deployments. Embedding the complete catalog thus requires 2-4 seconds on CPU or under 1 second on GPU, latencies that remain within acceptable bounds for interactive user interfaces.
 
-The Chroma vector database construction and indexing add minimal overhead, as the approximate nearest neighbor index for collections of this scale can be built in sub-second timeframes. Total initialization time (catalog fetch + embedding + indexing) typically ranges from 5-10 seconds depending on API response time and hardware configuration, acceptable for an asynchronous recommendation workflow where users expect several seconds of processing time for "intelligent" suggestions.
+The Chroma vector database construction and indexing add minimal overhead, as the approximate nearest neighbor index for collections of this scale can be built in sub-second timeframes. Total initialization time (catalog fetch + embedding + indexing) typically ranges from 1-5 seconds depending on API response time and hardware configuration, acceptable for an asynchronous recommendation workflow where users expect several seconds of processing time for "intelligent" suggestions.
 
 \subsubsection{Catalog Freshness and Consistency}
 
@@ -439,7 +452,7 @@ Successfully validated responses are wrapped in Pydantic \texttt{MatchResponse} 
 
 \subsubsection{Initialization Overhead}
 
-The on-demand embedding strategy, while ensuring catalog freshness and deployment simplicity, introduces 5-10 second latency for each recommendation request. This latency, while acceptable for an "intelligent assistant" feature where users expect some processing time, is noticeably longer than the sub-second response times users experience with traditional navigation. For high-frequency usage patterns where multiple users query simultaneously, this latency could degrade perceived system responsiveness.
+The on-demand embedding strategy, while ensuring catalog freshness and deployment simplicity, introduces 1-5 second latency for each recommendation request. This latency, while acceptable for an "intelligent assistant" feature where users expect some processing time, is noticeably longer than the sub-second response times users experience with traditional navigation. For high-frequency usage patterns where multiple users query simultaneously, this latency could degrade perceived system responsiveness.
 
 The initialization overhead also prevents integration of recommendations into more interactive contexts like real-time suggestion during form field population or proactive recommendation based on user role and recent activity patterns. These use cases would require sub-second response times incompatible with the current architecture.
 
@@ -473,7 +486,7 @@ Several enhancement directions offer potential for substantial improvements to r
 
 \subsubsection{Persistent Vector Store with Incremental Updates}
 
-Implementing a persistent vector store that is rebuilt periodically (e.g., every 3 hours) or triggered by catalog modification events would eliminate the initialization overhead from the critical path of recommendation requests. The system could maintain the vector index in memory across requests, reducing response latency from 5-10 seconds to under 1 second for the majority of cases.
+Implementing a persistent vector store that is rebuilt periodically (e.g., every 3 hours) or triggered by catalog modification events would eliminate the initialization overhead from the critical path of recommendation requests. The system could maintain the vector index in memory across requests, reducing response latency from 1-5 seconds to under 1 second for the majority of cases.
 
 Incremental update mechanisms could further optimize this approach by re-embedding only modified actions rather than rebuilding the entire index, enabling near-real-time catalog freshness with minimal computational overhead. Techniques like versioned indices with atomic swaps ensure that updates do not disrupt in-flight recommendation requests, maintaining service availability during index rebuilds.
 
