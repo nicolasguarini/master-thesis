@@ -1,11 +1,11 @@
-\chapter{Implementation of a modular and scalable solution}\label{sec:chapter-implementation}
+\chapter{Implementation of a Modular and Scalable Solution}\label{sec:chapter-implementation}
 \sloppy
 
 While the previous chapter described in detail the requirements and the new architectural design for the new ServiceRequestManager (SRM) system, proposing targeted solutions to overcome the various technological and structural limitations of the legacy SRP system, this chapter marks the transition from the theoretical plan to practical realization, focusing on the concrete implementation of a modular and scalable solution.
 
 The primary focus of this implementation lies in how the critical challenges described in the previous chapters were resolved. Specifically, it will be highlighted how the centralization of field management and configuration logic (and more generally of the catalog) on the backend eliminated the monolithic frontend and enabled a highly reusable three-level configuration system. The integration of the new execution and retrieval flow for master data through a message queue system will also be illustrated, which is essential for eliminating the dependency on the obsolete SRP Agent.
 
-\section{Automation of the Development Lifecycle through CI/CD Integration}
+\section{Automation of the Development Lifecycle Through CI/CD Integration}
 
 The project implements a comprehensive CI/CD pipeline that automates code quality verification, security scanning, testing, building, and deployment across three distinct environments: \texttt{devel}, \texttt{quality}, and \texttt{production}. The Git workflow requires feature branches to merge sequentially through these environments, ensuring progressive validation before production release.
 

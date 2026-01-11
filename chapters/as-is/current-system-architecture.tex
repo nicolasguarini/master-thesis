@@ -51,7 +51,7 @@ The only component in the client's network is called \textbf{Domain Controller},
     \item \textbf{SRP Agent Updator (.NET Windows Service)}: This service continuously monitors the SRP Agent folder for a file with a \texttt{.new} extension. If detected, it stops the SRP Agent, updates it, and restarts it
 \end{itemize}
 
-\subsection{Interactions and Communication between Customers and Company networks}
+\subsection{Interactions and Communication Between Customers and Company Networks}
 The Communication between the company network and the customers' networks is a critical aspect of the SRP system's operations and is handled through the \textbf{DMI Console} \cite{service_request_portal}.
 
 The DMI console serves as a key infrastructural component, primarily acting as a communication bridge between the customer's network and Elmec's internal network. Specifically, for the SRP system, the DMI console is responsible for transferring service requests (SR) from the customer's network to Elmec's internal network, although it does not handle traffic in the opposite direction \cite{dmi_infrastructure_git}.

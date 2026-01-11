@@ -20,7 +20,7 @@ The SRM catalog exposes over 300 distinct actions organized hierarchically throu
 
 \textbf{Evolution of Catalog Complexity:} As the SRM catalog continues to grow through addition of new actions for emerging services and customer-specific customizations, the navigation challenge intensifies. The catalog's flexibility, which is a core architectural strength, paradoxically contributes to user experience degradation as the action space expands beyond what can be efficiently browsed through hierarchical navigation alone.
 
-\subsection{Natural Language as an Interface for Service Requests}
+\subsection{Natural Language as Interface for Service Requests}
 
 Natural language interfaces have demonstrated significant success in reducing user friction for complex systems across various domains, from web search to voice assistants to customer support chatbots. The application of natural language understanding to service request management offers several compelling advantages:
 
@@ -307,7 +307,7 @@ The Chroma vector database construction and indexing add minimal overhead, as th
 
 The on-demand embedding strategy ensures that recommendations always reflect the current catalog state, including actions added, modified, or removed since the previous request. This freshness guarantee is particularly valuable during the SRP-SRM coexistence period where the catalog evolves through nightly synchronization jobs. A request at 14:00 will reflect catalog changes synchronized at 01:00 that morning, while a pre-built index updated every 3 hours might still contain stale action definitions.
 
-The strategy also eliminates the complexity of cache invalidation logic that would be required for persistent vector stores. Determining when to refresh a cached index requires monitoring catalog modification timestamps, handling partial updates, and managing concurrent access during index rebuilds—engineering effort that outweighs the performance benefits for catalogs of SRM's scale.
+The strategy also eliminates the complexity of cache invalidation logic that would be required for persistent vector stores. Determining when to refresh a cached index requires monitoring catalog modification timestamps, handling partial updates, and managing concurrent access during index rebuilds, engineering effort that outweighs the performance benefits for catalogs of SRM's scale.
 
 \subsubsection{Deployment Simplicity}
 
@@ -446,7 +446,7 @@ This cleaning addresses several common LLM output patterns: thinking tags (\text
 
 After cleaning, the response is parsed as JSON and validated against the expected schema. The validation checks for presence of the \texttt{matches} array and \texttt{user\_request} field, ensuring that the LLM followed the structured output format. Validation failures trigger error responses that include both the raw LLM output and the cleaned version, supporting rapid diagnosis of prompt engineering issues during development and production monitoring.
 
-Successfully validated responses are wrapped in Pydantic \texttt{MatchResponse} objects that enforce type constraints (confidence between 0.0-1.0, exactly 3 matches, reasoning under 200 characters). This double validation—first at JSON structure level, then at Pydantic schema level—provides robust guarantees about response quality before delivery to frontend applications.
+Successfully validated responses are wrapped in Pydantic \texttt{MatchResponse} objects that enforce type constraints (confidence between 0.0-1.0, exactly 3 matches, reasoning under 200 characters). This double validation, first at JSON structure level, then at Pydantic schema level, provides robust guarantees about response quality before delivery to frontend applications.
 
 \subsection{Current Limitations}
 
@@ -470,7 +470,7 @@ The system also lacks explicit language detection and routing logic that could s
 
 \subsubsection{Absence of User Feedback Mechanisms}
 
-The current implementation lacks mechanisms for users to provide explicit feedback on recommendation quality—whether through binary relevance judgments (thumbs up/down), confidence corrections, or free-form comments. This absence prevents direct measurement of user satisfaction with recommendations and eliminates a valuable source of training data for future model improvements.
+The current implementation lacks mechanisms for users to provide explicit feedback on recommendation quality, whether through binary relevance judgments (thumbs up/down), confidence corrections, or free-form comments. This absence prevents direct measurement of user satisfaction with recommendations and eliminates a valuable source of training data for future model improvements.
 
 Without feedback collection, the system relies on implicit signals (whether users select recommended actions) to assess quality, but these signals are noisy: a user might select a suboptimal recommendation due to uncertainty rather than confidence, or abandon the interface due to UI confusion rather than recommendation failure. Explicit feedback would enable clearer signal extraction for system evaluation and improvement.
 
