@@ -4,25 +4,25 @@ The transition from the legacy SRP system to the new ServiceRequestManager archi
 
 \section{Migration Strategy Overview}
 
-The migration architecture implements a dual-flow execution model where both SRP and SRM systems operate simultaneously, with individual service request actions configured to route through either the legacy or modern execution pipeline based on the \texttt{target\_type} attribute of the Action model, as shown in Listing \ref{lst:target_type_migration}.
+The migration architecture implements a dual-flow execution model where both SRP and SRM systems operate simultaneously, with individual service request actions configured to route through either the legacy or modern execution pipeline based on the \texttt{target\_type} enumerated attribute of the Action model.
 
-\begin{listing}[htbp]
-\begin{minted}[
-  linenos,
-  tabsize=1,
-  fontsize=\footnotesize,
-  breaklines
-]{python}
-class ActionTargetTypes(Enum):
-    DOMAIN_DC = "From SR Domain (Domain Controller)"
-    DOMAIN_EXC = "From SR Domain (Exchange Server)"
-    INTERNAL_WORKER = "Internal Worker"
-    INTERNAL_API = "API Call"
-    SRP = "SRP Agent (Domain Controller)"  # Legacy flow
-\end{minted}
-\caption{Action Target Type Enumeration for Dual-Flow Routing}
-\label{lst:target_type_migration}
-\end{listing}
+% \begin{listing}[htbp]
+% \begin{minted}[
+%   linenos,
+%   tabsize=1,
+%   fontsize=\footnotesize,
+%   breaklines
+% ]{python}
+% class ActionTargetTypes(Enum):
+%     DOMAIN_DC = "From SR Domain (Domain Controller)"
+%     DOMAIN_EXC = "From SR Domain (Exchange Server)"
+%     INTERNAL_WORKER = "Internal Worker"
+%     INTERNAL_API = "API Call"
+%     SRP = "SRP Agent (Domain Controller)"  # Legacy flow
+% \end{minted}
+% \caption{Action Target Type Enumeration for Dual-Flow Routing}
+% \label{lst:target_type_migration}
+% \end{listing}
 
 Actions configured with \texttt{target\_type = SRP} continue routing through the legacy SRP Agent execution mechanism, preserving the existing workflow without modification. Actions configured with any other target type utilize the new Ansible-based execution pipeline through Provision Prime, benefiting from improved logging, error handling, and state management capabilities introduced in SRM.
 
@@ -32,32 +32,32 @@ The primary architectural trade-off is that the catalog configuration must be ma
 
 \section{Catalog Synchronization from SRP to SRM}
 
-The catalog synchronization mechanism implements a unidirectional data flow where SRP serves as the authoritative source of catalog definitions, with SRM periodically importing and enriching this data. This synchronization is executed through the \texttt{sync\_srp\_catalog} Django management command, scheduled as a Kubernetes CronJob for daily execution at 01:00 AM, as shown in Listing \ref{lst:sync_catalog_job}.
+The catalog synchronization mechanism implements a unidirectional data flow where SRP serves as the authoritative source of catalog definitions, with SRM periodically importing and enriching this data. This synchronization is executed through the \texttt{sync\_srp\_catalog} Django management command, scheduled as a Kubernetes CronJob for daily execution at 01:00 AM.
 
-\begin{listing}[htbp]
-\begin{minted}[
-  linenos,
-  tabsize=1,
-  fontsize=\footnotesize,
-  breaklines
-]{python}
-@monitor_job
-def handle(self, *args, **kwargs):
-    with disable_auditlog(), pyodbc.connect(SRP_CONN_STR) as conn:
-        cursor = conn.cursor()
-        sync_action_types(cursor)
-        sync_action_categories(cursor)
-        sync_action_groups(cursor)
-        sync_customers(cursor)
-        sync_actions(cursor)
-        sync_config_parameters(cursor)
-        sync_fields(cursor)
-        # ...
-        reset_sequences(app_label="catalog")
-\end{minted}
-\caption{Catalog Synchronization Job Structure}
-\label{lst:sync_catalog_job}
-\end{listing}
+% \begin{listing}[htbp]
+% \begin{minted}[
+%   linenos,
+%   tabsize=1,
+%   fontsize=\footnotesize,
+%   breaklines
+% ]{python}
+% @monitor_job
+% def handle(self, *args, **kwargs):
+%     with disable_auditlog(), pyodbc.connect(SRP_CONN_STR) as conn:
+%         cursor = conn.cursor()
+%         sync_action_types(cursor)
+%         sync_action_categories(cursor)
+%         sync_action_groups(cursor)
+%         sync_customers(cursor)
+%         sync_actions(cursor)
+%         sync_config_parameters(cursor)
+%         sync_fields(cursor)
+%         # ...
+%         reset_sequences(app_label="catalog")
+% \end{minted}
+% \caption{Catalog Synchronization Job Structure}
+% \label{lst:sync_catalog_job}
+% \end{listing}
 
 \subsection{Synchronization Architecture}
 
@@ -67,7 +67,7 @@ The synchronization executes with audit logging disabled to prevent creation of 
 
 \subsection{Differential Synchronization Logic}
 
-The synchronization functions implement sophisticated differential logic that minimizes database operations by detecting actual changes rather than blindly recreating all data. Listing \ref{lst:differential_sync} demonstrates the pattern used across synchronization functions.
+The synchronization functions implement a differential logic that minimizes database operations by detecting actual changes rather than blindly recreating all data. Listing \ref{lst:differential_sync} demonstrates an example of the pattern used across all synchronization functions.
 
 \begin{listing}[htbp]
 \begin{minted}[
@@ -124,30 +124,30 @@ The synchronization concludes by resetting PostgreSQL auto-increment sequences t
 
 While catalog synchronization flows unidirectionally from SRP to SRM, execution history must be merged from both systems to provide unified visibility. The \texttt{sync\_srp\_sr\_history} command implements this bidirectional synchronization, scheduled to execute at 02:00 AM (one hour after catalog sync).
 
-The execution history synchronization imports three primary entity types: service request headers, field values, and execution logs. The synchronization is filtered by a configurable date threshold to avoid importing the complete historical archive, defaulting to the first day of the current month, as shown in Listing \ref{lst:history_sync}.
+The execution history synchronization imports three primary entity types: service request headers, field values, and execution logs. The synchronization is filtered by a configurable date threshold to avoid importing the complete historical archive, defaulting to the first day of the current month.
 
-\begin{listing}[htbp]
-\begin{minted}[
-  linenos,
-  tabsize=1,
-  fontsize=\footnotesize,
-  breaklines
-]{python}
-start_date = os.getenv(
-    "SRP_SR_SYNC_START_DATE",
-    datetime.date.today().replace(day=1).strftime("%Y-%m-%d")
-)
-cursor.execute(
-    f"SELECT * FROM TBSR_Headers WHERE Date > '{start_date}'"
-)
-# ... process service requests
-sync_service_requests(cursor)
-sync_service_request_fields(cursor)
-sync_service_request_logs(cursor)
-\end{minted}
-\caption{Execution History Synchronization with Date Filtering}
-\label{lst:history_sync}
-\end{listing}
+% \begin{listing}[htbp]
+% \begin{minted}[
+%   linenos,
+%   tabsize=1,
+%   fontsize=\footnotesize,
+%   breaklines
+% ]{python}
+% start_date = os.getenv(
+%     "SRP_SR_SYNC_START_DATE",
+%     datetime.date.today().replace(day=1).strftime("%Y-%m-%d")
+% )
+% cursor.execute(
+%     f"SELECT * FROM TBSR_Headers WHERE Date > '{start_date}'"
+% )
+% # ... process service requests
+% sync_service_requests(cursor)
+% sync_service_request_fields(cursor)
+% sync_service_request_logs(cursor)
+% \end{minted}
+% \caption{Execution History Synchronization with Date Filtering}
+% \label{lst:history_sync}
+% \end{listing}
 
 Service request field values imported from SRP must respect SRM's~enhanced security model where sensitive fields are encrypted at rest. The synchronization implements transparent encryption during import, checking each field's~sensitivity flag and applying encryption to values from sensitive fields. Execution logs stored in SRP use a numeric type code system incompatible with SRM's~enumerated log types, requiring a mapping table that translates SRP codes to SRM equivalents (Creation, Approval, Execution Started, Execution Completed, etc.).
 
@@ -162,13 +162,13 @@ The coexistence architecture's~core mechanism is the dynamic routing of service 
   fontsize=\footnotesize,
   breaklines
 ]{python}
-is_srp_flow = action.target_type == ActionTargetTypes.SRP.name
+is_srp_flow: bool = action.target_type == ActionTargetTypes.SRP.name
 
 # Create HDA ticket (common to both flows)
-response_ticket = mysupport.create_ticket(
+response_ticket: dict = mysupport.create_ticket(
     codicli=codicli, idrs=customer.idrs, body=body
 )
-ticket_id = response_ticket.get("ID")
+ticket_id: str = response_ticket.get("ID")
 
 if is_srp_flow:
     # Legacy flow: SRP will create the SR entity
@@ -180,7 +180,7 @@ if is_srp_flow:
 else:
     # Modern flow: SRM creates SR and triggers Celery tasks
     validated_data["ticket_reference"] = ticket_id
-    service_request = super().create(validated_data)
+    service_request: ServiceRequest = super().create(validated_data)
     # ... trigger async execution
     return service_request
 \end{minted}

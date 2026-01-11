@@ -29,21 +29,7 @@ The only information about the fields returned by the backend REST service (\tex
 
 For example, a field of type \texttt{UPN} is a composite field derived from the value of another field, '\texttt{Logon Name}', concatenated with an '\texttt{@}' symbol, and suffixed with the value from a select field whose options are the client's~domains, provided by an external REST service (e.g., "\texttt{n.guarini@elmec.it}", where "\texttt{n.guarini}" is the value of the "\texttt{Logon Name}" field, and "\texttt{elmec.it}" is the value of the "\texttt{Domain}" select field). 
 
-Despite this complexity, the REST service returns only a JSON document like the one shown in Listing \ref{lst:example-srp-field-data-0}.
-
-\begin{listing}[htbp]
-\begin{minted}[linenos,tabsize=2,fontsize=\footnotesize,breaklines]{json}
-{
-    "idField": 1603,
-    "descField": "UPN",
-    "type": "upn",
-    "mandatory": true
-}
-\end{minted}
-\caption{Example of field data returned by legacy SRP System REST Service.}
-\label{lst:example-srp-field-data-0}
-\end{listing}
-
+Despite this complexity, the REST service returns only a JSON document like the one shown in Listing \ref{lst:example-srp-field-data}.
 
 thus delegating to the frontend the responsibility of interpreting the type and rendering the field correctly.
 

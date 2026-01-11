@@ -50,26 +50,26 @@ The \texttt{commitizen-release} stage manages automatic versioning using Commiti
 
 When a semantic version tag is created, the pipeline triggers the workflow shown in Figure \ref{fig:tags-pipeline-workflow}. The \texttt{build:project-tags} stage assembles the final Docker image from previously built layers and publishes it to the company registry. Documentation stages generate OpenAPI/Swagger specifications using Django Spectacular and publish changelogs to the internal documentation platform.
 
-The \texttt{deploy:argo-tags} stages manage automatic deployment through ArgoCD \cite{argocd}, a GitOps tool that synchronizes Kubernetes cluster state with Git-declared configurations. Listing \ref{lst:argocd_deploy} shows the deployment trigger structure.
+The \texttt{deploy:argo-tags} stages manage automatic deployment through ArgoCD \cite{argocd}, a GitOps tool that synchronizes Kubernetes cluster state with Git-declared configurations. %Listing \ref{lst:argocd_deploy} shows the deployment trigger structure.
 
-\begin{listing}[htbp]
-\begin{minted}[
-  linenos,
-  tabsize=1,
-  fontsize=\footnotesize,
-  breaklines
-]{yaml}
-deploy:argo-tags:
-  stage: deploy
-  only:
-    - /^\d+\.\d+\.\d+$/  # Semantic version tags only
-  script:
-    - candymand deploy --namespace servicerequestmanager 
-                       --version $CI_COMMIT_TAG
-\end{minted}
-\caption{ArgoCD Deployment Configuration for GitOps-based Releases}
-\label{lst:argocd_deploy}
-\end{listing}
+%\begin{listing}[htbp]
+%\begin{minted}[
+%  linenos,
+%  tabsize=1,
+%  fontsize=\footnotesize,
+%  breaklines
+%]{yaml}
+%deploy:argo-tags:
+%  stage: deploy
+%  only:
+%    - /^\d+\.\d+\.\d+$/  # Semantic version tags only
+%  script:
+%    - candymand deploy --namespace servicerequestmanager 
+%                       --version $CI_COMMIT_TAG
+%\end{minted}
+%\caption{ArgoCD Deployment Configuration for GitOps-based Releases}
+%\label{lst:argocd_deploy}
+%\end{listing}
 
 The \texttt{notify:new-relic} stage registers deployments in New Relic APM, creating markers that correlate software versions with performance metrics and enabling rapid identification of deployment-related issues.
 
@@ -89,7 +89,7 @@ serviceAccount:
   create: TRUE
 deployments:
   - name: static    # Nginx for static content
-  - name: backend   # Django API + Celery workers
+  - name: backend   # Django API + Celery workers containers
 jobs:
   - name: sync-srp-catalog        # Daily at 01:00
   - name: sync-srp-sr-history     # Daily at 02:00
@@ -103,31 +103,31 @@ jobs:
 
 The \texttt{backend} deployment constitutes the architecture core, managing application logic through multi-container organization. The deployment integrates HashiCorp Vault \cite{vault} for secrets management, automatically injecting credentials into the pod filesystem at \texttt{/vault/secrets/secrets} without exposing them in environment variables.
 
-The \texttt{api} container runs Django through Gunicorn with Burstable QoS \cite{burstable_qos} (400m-800m CPU, 1000Mi-1200Mi memory), while the \texttt{celery} container executes asynchronous workers with identical resource allocation. Listing \ref{lst:celery_container} shows the worker configuration.
+The \texttt{api} container runs Django through Gunicorn with Burstable QoS \cite{burstable_qos} (400m-800m CPU, 1000Mi-1200Mi memory), while the \texttt{celery} container executes asynchronous workers with identical resource allocation. %Listing \ref{lst:celery_container} shows the worker configuration.
 
-\begin{listing}[htbp]
-\begin{minted}[
-  linenos,
-  tabsize=1,
-  fontsize=\footnotesize,
-  breaklines
-]{yaml}
-- name: celery
-  image: "docker.elmec.com/.../servicerequestmanager:VERSION"
-  command: "/bin/sh"
-  args:
-    - -c
-    - . /vault/secrets/secrets; cd servicerequestmanager; 
-      celery -A servicerequestmanager worker --loglevel=info 
-             --pool threads
-  envs:
-    - name: CELERY_QUEUE
-      value: "servicerequestmanager_production"
-    # ...
-\end{minted}
-\caption{Celery Worker Container Configuration in Kubernetes}
-\label{lst:celery_container}
-\end{listing}
+% \begin{listing}[htbp]
+% \begin{minted}[
+%   linenos,
+%   tabsize=1,
+%   fontsize=\footnotesize,
+%   breaklines
+% ]{yaml}
+% - name: celery
+%   image: "docker.elmec.com/.../servicerequestmanager:VERSION"
+%   command: "/bin/sh"
+%   args:
+%     - -c
+%     - . /vault/secrets/secrets; cd servicerequestmanager; 
+%       celery -A servicerequestmanager worker --loglevel=info 
+%              --pool threads
+%   envs:
+%     - name: CELERY_QUEUE
+%       value: "servicerequestmanager_production"
+%     # ...
+% \end{minted}
+% \caption{Celery Worker Container Configuration in Kubernetes}
+% \label{lst:celery_container}
+% \end{listing}
 
 The deployment exposes two services: \texttt{api} for internal cluster access and \texttt{api-ext} for public access through \texttt{api.elmec.com/servicerequestmanager/}, with path rewriting middleware removing the prefix. CORS policies permit cross-origin requests supporting third-party integrations.
 
@@ -189,30 +189,30 @@ As shown in Figure \ref{fig:er_catalog_hierarchy}, the architecture consists of 
     \label{fig:er_catalog_hierarchy}
 \end{figure}
 
-Configuration resolution follows strict precedence: \texttt{CustomerActionField} overrides \texttt{ActionField}, which overrides \texttt{Field}, while \texttt{CustomerAction} overrides \texttt{Action}. Listing \ref{lst:target_type_enum} shows the implementation of the target type enumeration that determines execution routing.
+Configuration resolution follows strict precedence: \texttt{CustomerActionField} overrides \texttt{ActionField}, which overrides \texttt{Field}, while \texttt{CustomerAction} overrides \texttt{Action}. % Listing \ref{lst:target_type_enum} shows the implementation of the target type enumeration that determines execution routing.
 
-\begin{listing}[htbp]
-\begin{minted}[
-  linenos,
-  tabsize=1,
-  fontsize=\footnotesize,
-  breaklines
-]{python}
-class ActionTargetTypes(Enum):
-    DOMAIN_DC = "From SR Domain (Domain Controller)"
-    DOMAIN_EXC = "From SR Domain (Exchange Server)"
-    INTERNAL_WORKER = "Internal Worker"
-    SRP = "SRP Agent (Domain Controller)"
-    
-    def get_class(self) -> BaseActionTargetType | None:
-        match self:
-            case ActionTargetTypes.DOMAIN_DC:
-                return DCFromDomainTargetType()
-            # ...
-\end{minted}
-\caption{Action Target Type Enumeration Implementation}
-\label{lst:target_type_enum}
-\end{listing}
+% \begin{listing}[htbp]
+% \begin{minted}[
+%   linenos,
+%   tabsize=1,
+%   fontsize=\footnotesize,
+%   breaklines
+% ]{python}
+% class ActionTargetTypes(Enum):
+%     DOMAIN_DC = "From SR Domain (Domain Controller)"
+%     DOMAIN_EXC = "From SR Domain (Exchange Server)"
+%     INTERNAL_WORKER = "Internal Worker"
+%     SRP = "SRP Agent (Domain Controller)"
+%     
+%     def get_class(self) -> BaseActionTargetType | None:
+%         match self:
+%             case ActionTargetTypes.DOMAIN_DC:
+%                 return DCFromDomainTargetType()
+%             # ...
+% \end{minted}
+% \caption{Action Target Type Enumeration Implementation}
+% \label{lst:target_type_enum}
+% \end{listing}
 
 \subsubsection{Key Architectural Patterns}
 
@@ -338,35 +338,35 @@ def process_users_for_customer(customer_id: int, user_data_list):
 
 \subsection{Observability and Monitoring}
 
-The system implements comprehensive observability through multiple layers: New Relic APM for transaction monitoring, structured logging with automatic New Relic Logs integration, health checks via the \texttt{/ht/} endpoint, and Prometheus metrics exposure. The \texttt{@monitor\_job} decorator wraps scheduled tasks as shown in Listing \ref{lst:monitor_job}.
+The system implements comprehensive observability through multiple layers: New Relic APM for transaction monitoring, structured logging with automatic New Relic Logs integration, health checks via the \texttt{/ht/} endpoint, and Prometheus metrics exposure via dedicated methods decorators. %The \texttt{@monitor\_job} decorator wraps scheduled tasks as shown in Listing \ref{lst:monitor_job}.
 
-\begin{listing}[htbp]
-\begin{minted}[
-  linenos,
-  tabsize=1,
-  fontsize=\footnotesize,
-  breaklines
-]{python}
-def monitor_job(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        application = newrelic.agent.register_application()
-        start_time = datetime.now()
-        
-        try:
-            return_val = func(*args, **kwargs)
-            # Send completion event to New Relic
-        except Exception as err:
-            # Send error event with traceback
-            raise
-        finally:
-            end_time = datetime.now()
-            # Log duration and status
-    return wrapper
-\end{minted}
-\caption{Job Monitoring Decorator for Observability}
-\label{lst:monitor_job}
-\end{listing}
+% \begin{listing}[htbp]
+% \begin{minted}[
+%   linenos,
+%   tabsize=1,
+%   fontsize=\footnotesize,
+%   breaklines
+% ]{python}
+% def monitor_job(func):
+%     @wraps(func)
+%     def wrapper(*args, **kwargs):
+%         application = newrelic.agent.register_application()
+%         start_time = datetime.now()
+%         
+%         try:
+%             return_val = func(*args, **kwargs)
+%             # Send completion event to New Relic
+%         except Exception as err:
+%             # Send error event with traceback
+%             raise
+%         finally:
+%             end_time = datetime.now()
+%             # Log duration and status
+%     return wrapper
+% \end{minted}
+% \caption{Job Monitoring Decorator for Observability}
+% \label{lst:monitor_job}
+% \end{listing}
 
 \section{Frontend Application Implementation}
 

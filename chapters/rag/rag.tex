@@ -1,4 +1,4 @@
-\chapter{Recommendation System through LLM and Retrieval Augmented Generation}
+\chapter{Recommendation System Through LLM and Retrieval Augmented Generation}
 
 The ServiceRequestManager catalog, while providing comprehensive coverage of available service request types through its three-level configuration hierarchy, presents end users with a potentially overwhelming interface containing hundreds of distinct actions organized across multiple categories and groups. Traditional hierarchical navigation requires users to understand the organizational taxonomy of IT services, navigate through nested category structures, and select from long lists of similarly-named actions, a process that introduces friction in the user experience and may result in suboptimal action selection or abandonment of the request creation workflow.
 
@@ -335,36 +335,36 @@ The recommendation flow orchestrates the complete pipeline from user query submi
 
 \subsection{User Query Processing}
 
-User interaction with the recommendation system occurs through a FastAPI endpoint that accepts natural language queries and returns structured JSON responses. Listing \ref{lst:fastapi_endpoint} shows the endpoint implementation.
+User interaction with the recommendation system occurs through a FastAPI endpoint that accepts natural language queries and returns structured JSON responses. % Listing \ref{lst:fastapi_endpoint} shows the endpoint implementation.
 
-\begin{listing}[htbp]
-\begin{minted}[
-  linenos,
-  tabsize=1,
-  fontsize=\footnotesize,
-  breaklines
-]{python}
-@app.post("/match", response_model=MatchResponse)
-async def match_action(request: MatchRequest) -> MatchResponse:
-    logger.info(f"Processing: {request.user_request[:50]}...")
-    
-    matcher = ActionMatcherRAG(
-        api_endpoint=API_ENDPOINT, 
-        lm_studio_url=LM_STUDIO_URL
-    )
-    
-    matcher.initialize()  # Fetch catalog, embed, index
-    result = matcher.match_action(request.user_request)
-    
-    if "error" in result:
-        raise HTTPException(status_code=500, 
-                          detail=result.get("error"))
-    
-    return MatchResponse(**result)
-\end{minted}
-\caption{FastAPI Endpoint for Action Matching}
-\label{lst:fastapi_endpoint}
-\end{listing}
+% \begin{listing}[htbp]
+% \begin{minted}[
+%   linenos,
+%   tabsize=1,
+%   fontsize=\footnotesize,
+%   breaklines
+% ]{python}
+% @app.post("/match", response_model=MatchResponse)
+% async def match_action(request: MatchRequest) -> MatchResponse:
+%     logger.info(f"Processing: {request.user_request[:50]}...")
+%     
+%     matcher = ActionMatcherRAG(
+%         api_endpoint=API_ENDPOINT, 
+%         lm_studio_url=LM_STUDIO_URL
+%     )
+%     
+%     matcher.initialize()  # Fetch catalog, embed, index
+%     result = matcher.match_action(request.user_request)
+%     
+%     if "error" in result:
+%         raise HTTPException(status_code=500, 
+%                           detail=result.get("error"))
+%     
+%     return MatchResponse(**result)
+% \end{minted}
+% \caption{FastAPI Endpoint for Action Matching}
+% \label{lst:fastapi_endpoint}
+% \end{listing}
 
 The endpoint leverages Pydantic models for request and response validation. The \texttt{MatchRequest} model enforces that user queries are non-empty strings with reasonable length constraints (1-1000 characters), while the \texttt{MatchResponse} model ensures that LLM outputs conform to the expected structure with exactly 3 matches, each containing an action ID, description, confidence score (0.0-1.0), and reasoning text.
 
@@ -431,41 +431,41 @@ The context section is populated with the formatted descriptions of the 5 retrie
 
 \subsection{LLM Output Interpretation}
 
-The LLM generates a JSON response following the prompt template structure, which undergoes cleaning and validation before being returned to the client. The cleaning process, shown in Listing \ref{lst:response_cleaning}, handles various formatting artifacts that LLMs commonly produce.
+The LLM generates a JSON response following the prompt template structure, which undergoes cleaning and validation before being returned to the client. The cleaning process handles various formatting artifacts that LLMs commonly produce.
 
-\begin{listing}[htbp]
-\begin{minted}[
-  linenos,
-  tabsize=1,
-  fontsize=\footnotesize,
-  breaklines
-]{python}
-def clean_llm_response(self, response: str) -> str:
-    response_clean = response.strip()
-    
-    # Remove thinking tags (e.g., from Qwen models)
-    response_clean = re.sub(r"<think>.*?</think>", "", 
-                           response_clean, flags=re.DOTALL)
-    
-    # Remove markdown code blocks
-    if response_clean.startswith("```json"):
-        response_clean = response_clean[7:]
-    elif response_clean.startswith("```"):
-        response_clean = response_clean[3:]
-    if response_clean.endswith("```"):
-        response_clean = response_clean[:-3]
-    
-    # Extract JSON object
-    json_start = response_clean.find("{")
-    json_end = response_clean.rfind("}")
-    if json_start != -1 and json_end != -1:
-        response_clean = response_clean[json_start:json_end + 1]
-    
-    return response_clean
-\end{minted}
-\caption{LLM Response Cleaning and JSON Extraction}
-\label{lst:response_cleaning}
-\end{listing}
+% \begin{listing}[htbp]
+% \begin{minted}[
+%   linenos,
+%   tabsize=1,
+%   fontsize=\footnotesize,
+%   breaklines
+% ]{python}
+% def clean_llm_response(self, response: str) -> str:
+%     response_clean = response.strip()
+%     
+%     # Remove thinking tags (e.g., from Qwen models)
+%     response_clean = re.sub(r"<think>.*?</think>", "", 
+%                            response_clean, flags=re.DOTALL)
+%     
+%     # Remove markdown code blocks
+%     if response_clean.startswith("```json"):
+%         response_clean = response_clean[7:]
+%     elif response_clean.startswith("```"):
+%         response_clean = response_clean[3:]
+%     if response_clean.endswith("```"):
+%         response_clean = response_clean[:-3]
+%     
+%     # Extract JSON object
+%     json_start = response_clean.find("{")
+%     json_end = response_clean.rfind("}")
+%     if json_start != -1 and json_end != -1:
+%         response_clean = response_clean[json_start:json_end + 1]
+%     
+%     return response_clean
+% \end{minted}
+% \caption{LLM Response Cleaning and JSON Extraction}
+% \label{lst:response_cleaning}
+% \end{listing}
 
 This cleaning addresses several common LLM output patterns: thinking tags (\texttt{<think>...</think>}) that some models like Qwen use to expose reasoning processes; markdown code block delimiters (\texttt{```json}) that models trained to follow formatting conventions may include; and extraneous text before or after the JSON object that violates the "respond only with JSON" instruction.
 
