@@ -85,7 +85,12 @@ To solve the issues related to the frontend, a deep restructuring of the backend
 \end{listing}
 
 \begin{listing}[htbp]
-\begin{minted}[linenos,tabsize=2,fontsize=\footnotesize,breaklines]{json}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{json}
 {
     "field": {
         "id": 3001,
@@ -97,7 +102,8 @@ To solve the issues related to the frontend, a deep restructuring of the backend
         "external_api_config": {
             "name": "AD_USERS",
             "base_url": "https://q-api.elmec.com/srp/",
-            "endpoint_pattern": "api/customer/VFG/adusers?domain={{domain}}",
+            "endpoint_pattern": 
+                "api/customer/VFG/adusers?domain={{domain}}",
             "http_method": "GET",
             "headers_json": {
                 "Authorization": "{{TOKEN_TYPE}} {{TOKEN}}"

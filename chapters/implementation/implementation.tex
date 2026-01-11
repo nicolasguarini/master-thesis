@@ -53,7 +53,12 @@ When a semantic version tag is created, the pipeline triggers the workflow shown
 The \texttt{deploy:argo-tags} stages manage automatic deployment through ArgoCD \cite{argocd}, a GitOps tool that synchronizes Kubernetes cluster state with Git-declared configurations. Listing \ref{lst:argocd_deploy} shows the deployment trigger structure.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{yaml}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{yaml}
 deploy:argo-tags:
   stage: deploy
   only:
@@ -73,7 +78,12 @@ The \texttt{notify:new-relic} stage registers deployments in New Relic APM, crea
 The SRM deployment architecture on Kubernetes ensures scalability, resilience, and separation of responsibilities through distinct deployments optimized for specific system functions. The high-level structure shown in Listing \ref{lst:k8s_structure} defines the namespace, service accounts, deployments, and scheduled jobs.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{yaml}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{yaml}
 namespace: servicerequestmanager
 serviceAccount:
   create: TRUE
@@ -96,7 +106,12 @@ The \texttt{backend} deployment constitutes the architecture core, managing appl
 The \texttt{api} container runs Django through Gunicorn with Burstable QoS \cite{burstable_qos} (400m-800m CPU, 1000Mi-1200Mi memory), while the \texttt{celery} container executes asynchronous workers with identical resource allocation. Listing \ref{lst:celery_container} shows the worker configuration.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{yaml}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{yaml}
 - name: celery
   image: "docker.elmec.com/.../servicerequestmanager:VERSION"
   command: "/bin/sh"
@@ -177,7 +192,12 @@ As shown in Figure \ref{fig:er_catalog_hierarchy}, the architecture consists of 
 Configuration resolution follows strict precedence: \texttt{CustomerActionField} overrides \texttt{ActionField}, which overrides \texttt{Field}, while \texttt{CustomerAction} overrides \texttt{Action}. Listing \ref{lst:target_type_enum} shows the implementation of the target type enumeration that determines execution routing.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{python}
 class ActionTargetTypes(Enum):
     DOMAIN_DC = "From SR Domain (Domain Controller)"
     DOMAIN_EXC = "From SR Domain (Exchange Server)"
@@ -203,7 +223,12 @@ class ActionTargetTypes(Enum):
 \textbf{Templating System:} Jinja2 templating enables dynamic behavior throughout the configuration layer. Field autofill templates define patterns for pre-populating values based on other fields, as shown in Listing \ref{lst:jinja_template}.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{python}
 # Template example for UPN autofill
 autofill_template = "{{ first_name }}.{{ last_name }}"
 # Renders to: "john.doe" when first_name="john", last_name="doe"
@@ -223,7 +248,12 @@ endpoint_pattern = "/api/customers/{{ idrs }}/adusers?domain={{ domain }}"
 The validation system, centralized in \texttt{ServiceRequestValidationMixin}, implements comprehensive pre-submission validation. The architecture separates global validators (operating on complete field sets) from field validators (examining individual field-value pairs). Listing \ref{lst:validation_example} demonstrates the regex validation implementation.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{python}
 def validate_field_value_regex(
     field: Field, value: str | None, **_kwargs
 ) -> None:
@@ -246,16 +276,21 @@ Validation progresses through multiple layers: syntactic validation via regex pa
 The execution workflow implements event-driven task orchestration through Celery. The flow implements a state machine (NEW, WAIT4APPROVAL, APPROVED, PENDING, EXECUTED, SUSPENDED, ERROR, REJECTED) coordinated through six specialized tasks. Listing \ref{lst:celery_task} shows the structure of a typical Celery task.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{python}
 @shared_task()
 def manage_new_service_request_and_ticket(sr_id: int):
     sr = ServiceRequest.objects.get(id=sr_id)
     
     if sr.action.requires_approval:
-        sr.status = "WAIT4APPROVAL"
+        sr.status = ServiceRequestStatus.WAIT4APPROVAL
         sr.save()
     else:
-        sr.status = "APPROVED"
+        sr.status = ServiceRequestStatus.APPROVED
         # ...
         execute_service_request.delay(sr_id)
 \end{minted}
@@ -270,7 +305,12 @@ Script execution occurs through Ansible playbooks implementing a five-phase patt
 The master data import subsystem eliminates real-time LDAP query latency through a scheduled export-materialize-query pattern. Listing \ref{lst:master_data_sync} demonstrates the differential synchronization logic.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{python}
 @transaction.atomic
 def process_users_for_customer(customer_id: int, user_data_list):
     logon_names_from_file = set(
@@ -301,7 +341,12 @@ def process_users_for_customer(customer_id: int, user_data_list):
 The system implements comprehensive observability through multiple layers: New Relic APM for transaction monitoring, structured logging with automatic New Relic Logs integration, health checks via the \texttt{/ht/} endpoint, and Prometheus metrics exposure. The \texttt{@monitor\_job} decorator wraps scheduled tasks as shown in Listing \ref{lst:monitor_job}.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{python}
 def monitor_job(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -336,7 +381,12 @@ Both applications leverage Vue 3 Composition API with TypeScript for type safety
 The end-user interface implements a dynamic form builder rendering forms based on backend API responses. A single GET request retrieves complete action definitions including resolved field configurations. Listing \ref{lst:vue_validation} shows the client-side validation rules generation.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{typescript}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{typescript}
 const formRules = computed(() => {
   const rules: Record<string, any[]> = {}
   

@@ -216,7 +216,12 @@ This API-based catalog retrieval ensures that the recommendation system operates
 The \texttt{ActionMatcherRAG} class, implemented in Listing \ref{lst:document_prep}, transforms catalog actions into text documents suitable for embedding. For each action, the system constructs a comprehensive text representation concatenating all relevant fields, enabling the embedding model to capture semantic relationships across multiple properties.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{python}
 def prepare_documents(self, actions_data: List[Dict]) -> List[Document]:
     documents = []
     for action_item in actions_data:
@@ -264,7 +269,12 @@ The temperature parameter is set to 0, enforcing deterministic sampling that pro
 The RAG pipeline is implemented as a LangChain chain that composes retrieval, context formatting, prompting, and generation into a unified execution graph. Listing \ref{lst:rag_chain} demonstrates the chain construction using LangChain's declarative syntax.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{python}
 def create_rag_chain(self) -> None:
     prompt = PromptTemplate(
         template=prompt_template, 
@@ -328,7 +338,12 @@ The recommendation flow orchestrates the complete pipeline from user query submi
 User interaction with the recommendation system occurs through a FastAPI endpoint that accepts natural language queries and returns structured JSON responses. Listing \ref{lst:fastapi_endpoint} shows the endpoint implementation.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{python}
 @app.post("/match", response_model=MatchResponse)
 async def match_action(request: MatchRequest) -> MatchResponse:
     logger.info(f"Processing: {request.user_request[:50]}...")
@@ -370,7 +385,12 @@ The retrieval returns the top-5 most similar actions ranked by cosine similarity
 The retrieved candidate actions are formatted into a structured context document that will guide the LLM's ranking and explanation generation. Listing \ref{lst:prompt_template} shows the prompt template used for action matching.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{text}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{text}
 You are an AI assistant specialized in matching user requests 
 to IT service actions.
 
@@ -414,7 +434,12 @@ The context section is populated with the formatted descriptions of the 5 retrie
 The LLM generates a JSON response following the prompt template structure, which undergoes cleaning and validation before being returned to the client. The cleaning process, shown in Listing \ref{lst:response_cleaning}, handles various formatting artifacts that LLMs commonly produce.
 
 \begin{listing}[htbp]
-\begin{minted}[fontsize=\footnotesize,breaklines]{python}
+\begin{minted}[
+  linenos,
+  tabsize=1,
+  fontsize=\footnotesize,
+  breaklines
+]{python}
 def clean_llm_response(self, response: str) -> str:
     response_clean = response.strip()
     
