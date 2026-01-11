@@ -23,7 +23,7 @@
          \columnbreak
 
          \begin{flushright}
-            {\normalsize{\textbf{Master's Thesis by:}}{\normalsize\vspace{1mm}
+            {\normalsize{\textbf{Master's~Thesis by:}}{\normalsize\vspace{1mm}
             \\ \normalsize{Nicolas Guarini, Student ID 918670}\\\vspace{5mm}
             }}
             {\normalsize{\textbf{Academic Year}}{\normalsize\vspace{1mm}
@@ -36,7 +36,7 @@
     {\normalsize{\textbf{Summary}}{\normalsize\vspace{5mm}}}  
 \end{center}
 
-This Master's Thesis presents a comprehensive architectural transformation of an enterprise IT Service Request management platform. The research details the transition from a legacy system, known as SRP, to a modern, scalable, and intelligent architecture named \textbf{ServiceRequestManager (SRM)}. The project addresses deep-seated technical debt and structural limitations inherent in the original \textit{distributed monolithic} design, which had become difficult to maintain and scale.
+This Master's~Thesis presents a comprehensive architectural transformation of an enterprise IT Service Request management platform. The research details the transition from a legacy system, known as SRP, to a modern, scalable, and intelligent architecture named \textbf{ServiceRequestManager (SRM)}. The project addresses deep-seated technical debt and structural limitations inherent in the original \textit{distributed monolithic} design, which had become difficult to maintain and scale.
 
 The initial analysis of the legacy SRP system identified several critical challenges that compromised its operational reliability. The user interface was an excessively complex monolithic Vue.js component exceeding 11,000 lines of code, where business logic was hard-coded into the presentation layer, making customizations nearly impossible without direct code intervention. Furthermore, the system relied heavily on an \textit{agent} installed on customer Domain Controllers, which introduced security risks and required elevated permissions. Data management was equally problematic, as core business logic was scattered across unversioned \textit{SQL Server Stored Procedures} and \textit{SSIS jobs}, while the database schema suffered from significant redundancy and a lack of referential integrity.
 

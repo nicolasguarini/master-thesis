@@ -10,7 +10,7 @@ The requirements for each of these areas will therefore be analyzed.
 \subsection{Catalog Structure and Management}
 This is the most substantial component of the three, dealing with everything concerning the definition, maintenance, and configuration of the actions executable by each customer. This therefore also includes the management of form fields, customer-specific customizations, scripts, their parameters, the target machine address retrieval logic, and so on.
 
-Like mentioned in the first chapter's introduction, an '\textit{Action}' is understood as the formal definition of an operation that a client can execute on its infrastructure, while a '\textit{Service Request}' (SR), on the other hand, is understood as the effective execution of an Action. 
+Like mentioned in the first chapter's~introduction, an '\textit{Action}' is understood as the formal definition of an operation that a client can execute on its infrastructure, while a '\textit{Service Request}' (SR), on the other hand, is understood as the effective execution of an Action. 
 If a parallel with OOP is to be drawn, the Action can be seen as a class, and the Service Request as an object, an instance of the aforementioned class.
 
 \subsubsection{Actions}
@@ -18,7 +18,7 @@ The Action entity can be seen as the core of the catalog component, and it is co
 \begin{itemize}
   \item General metadata, such as the name, an extended description, tags, a type, a group, a category, and other information related to administrative and billing aspects;
   \item The fields of the corresponding form that must be filled by the client for its execution, including the relative logic tied to types, data validation, dependencies between various fields (e.g., fields that, once completed, "enable" other fields), autofill (e.g., fields whose values are autofilled with values from other fields), sensitive values, and so on;
-  \item The script that will be executed in the customer's infrastructure to perform the effective required operation;
+  \item The script that will be executed in the customer's~infrastructure to perform the effective required operation;
   \item Script parameters, which may be field values, but also additional parameters necessary for execution (e.g., AWS credentials, 365 credentials, etc\dots);
   \item The target machine on which the script must be executed.
 \end{itemize}
@@ -42,10 +42,10 @@ Regarding customizations, a typical example scenario could be the following: a c
 
 Regarding "particular" field types, the system must provide for \cite{requirements_meeting}:
 \begin{itemize}
-  \item Select fields whose options are customer-specific (e.g., "Domain" field, which is a select with all the customer's domains);
+  \item Select fields whose options are customer-specific (e.g., "Domain" field, which is a select with all the customer's~domains);
   \item Select fields whose options are global for the entire system (e.g., "Country" field, which provides a list of states that are the same for all customers);
-  \item Select fields whose options are customer-specific and to obtain them an external service must be contacted, with the possible option to search (e.g., "Server" field, which is a select with all the customer's servers, returned by the Atlantis CMDB service);
-  \item Autofilled text fields, meaning their values are obtained through a templating system (e.g., Jinja) that uses the values of other fields (e.g., "Logon Name" field, populated by concatenating the user's first and last name separated by, for example, a dot);
+  \item Select fields whose options are customer-specific and to obtain them an external service must be contacted, with the possible option to search (e.g., "Server" field, which is a select with all the customer's~servers, returned by the Atlantis CMDB service);
+  \item Autofilled text fields, meaning their values are obtained through a templating system (e.g., Jinja) that uses the values of other fields (e.g., "Logon Name" field, populated by concatenating the user's~first and last name separated by, for example, a dot);
   \item Text fields whose validation occurs through regex (e.g., "Date" field, which must comply with the standard format);
   \item Text fields whose validation occurs through an external service (e.g., "Logon Name" field, which requires contacting the relevant Active Directory service for validation that a user with the same logon name does not already exist);
   \item Fields with sensitive values, whose values will therefore need to be saved encrypted, using some symmetric encryption algorithm (e.g., "Password" field);
@@ -58,19 +58,19 @@ It is important that the system is designed in a scalable way, so that if anothe
 A system for monitoring the consistency of the catalog configurations \cite{requirements_meeting} will be necessary, in order to prevent the creation of invalid configurations, which would then lead to errors during SR execution.
 
 For example, if a \texttt{select} type field is specified for an action, whose options are obtained from customer-specific parameters, but those parameters have not been defined for that customer, the system must report this inconsistency through some alerting system (e.g., email, ticket, monitoring dashboard).
-Alternatively, if an action is configured to be executed on a certain type of machine but the field necessary to select it is not among the action's fields, the system must report this inconsistency.
+Alternatively, if an action is configured to be executed on a certain type of machine but the field necessary to select it is not among the action's~fields, the system must report this inconsistency.
 
 Similarly, a system for monitoring the consistency of SR executions must be implemented, in order to be able to report any errors that may have occurred during execution, such as an SR stuck in an "intermediate" state (e.g., \texttt{NEW}) for too long, or an SR that started execution (i.e., in \texttt{PENDING}) but never reached completion (i.e., in \texttt{COMPLETED} or \texttt{ERROR}) within a certain time limit (e.g., 2 hours).
 
 \subsubsection{Additional Script Parameters}
-Another topic that must be managed is that of script parameters. In the old system, there was granular control over every single parameter, which was linked to an action's script and possibly to a field in the corresponding Service Request. In practice, all the action's fields with their respective values were passed as parameters to each script, plus some additional parameters not linked to any field (e.g., Exchange Server, AD Sync Server, various credentials). This dynamic of additional parameters occurred through the definition of parameters with the foreign key on the field set to \texttt{NULL}, which were then intercepted by the stored procedure relating to the generation of the parameter string which, with hard-coded \texttt{if} statements (e.g., \texttt{IF @ParamName = 'ServerExc' BEGIN ...}), were valued accordingly, retrieving the information with custom and non-standardized logic.
+Another topic that must be managed is that of script parameters. In the old system, there was granular control over every single parameter, which was linked to an action's~script and possibly to a field in the corresponding Service Request. In practice, all the action's~fields with their respective values were passed as parameters to each script, plus some additional parameters not linked to any field (e.g., Exchange Server, AD Sync Server, various credentials). This dynamic of additional parameters occurred through the definition of parameters with the foreign key on the field set to \texttt{NULL}, which were then intercepted by the stored procedure relating to the generation of the parameter string which, with hard-coded \texttt{if} statements (e.g., \texttt{IF @ParamName = 'ServerExc' BEGIN ...}), were valued accordingly, retrieving the information with custom and non-standardized logic.
 
 In the new system, it will be necessary to standardize these dynamics, finding a way to define the additional parameters that will be needed, beyond those of the fields, during action configuration, and to generalize the implementation logic as much as possible, so that if new "groups" of additional parameters (e.g., AWS credentials, O365 credentials, etc.) were to be added, it can be done in the most efficient way possible.
 
 \subsubsection{Target Machine Configuration}
 In the old system, Service Requests were executed exclusively on the customers' Domain Controllers. Specifically, each DC ran an agent, which periodically checked via \textit{polling}\footnote{\textit{Polling} is a communication technique where a system or device periodically and actively samples the status of an external resource or device to check for readiness or new data.} if there were any Service Requests in the \texttt{PENDING} state with a matching \texttt{domain} field. 
 
-This part of the architecture will also need to be redesigned, as it is inefficient and highly limiting by design \cite{polling}. Therefore, in addition to redesigning these dynamics, it will also be necessary to provide the option to choose, during the configuration of an Action, to execute the related SRs on other types of machines, such as internal Elmec workers, or other types of machines on the customer's network other than the Domain Controller (e.g., Exchange Server). It must also be possible to choose to execute SRs through the old flow, in order to continue supporting both systems, at least initially \cite{requirements_meeting}.
+This part of the architecture will also need to be redesigned, as it is inefficient and highly limiting by design \cite{polling}. Therefore, in addition to redesigning these dynamics, it will also be necessary to provide the option to choose, during the configuration of an Action, to execute the related SRs on other types of machines, such as internal Elmec workers, or other types of machines on the customer's~network other than the Domain Controller (e.g., Exchange Server). It must also be possible to choose to execute SRs through the old flow, in order to continue supporting both systems, at least initially \cite{requirements_meeting}.
 
 \subsection{Service Request Execution}
 In the current system, the execution of SRs occurs according to this sequence of main events:
@@ -79,8 +79,8 @@ In the current system, the execution of SRs occurs according to this sequence of
  \item The frontend sends the request to create a new SR to the REST service (\texttt{SRPWebServiceREST}), with all the necessary data (completed fields, customer, action, etc.) \cite{srp_webservicerest_git};
  \item The SR and the relevant field values are created in the database, setting the status to \texttt{NEW} \cite{srp_webservicerest_git};
  \item An SSIS job, every minute, checks if there are SRs in the \texttt{NEW} state, and if any are found, they are processed, moving them to subsequent states (e.g., \texttt{WAITING FOR APPROVAL}, \texttt{PENDING}, \texttt{ASSIGNED}, etc.) depending on the action and customer configuration \cite{service_request_portal};
- \item When the SR is in the \texttt{PENDING} state, it means it is ready to be executed by the agent on the customer's DC;
- \item Every 10 seconds, the agent on the customer's DC checks if there are SRs in the \texttt{PENDING} state for its domain (through calls to the SOAP service (\texttt{SRPWebService})) \cite{srp_windowsservice_git};
+ \item When the SR is in the \texttt{PENDING} state, it means it is ready to be executed by the agent on the customer's~DC;
+ \item Every 10 seconds, the agent on the customer's~DC checks if there are SRs in the \texttt{PENDING} state for its domain (through calls to the SOAP service (\texttt{SRPWebService})) \cite{srp_windowsservice_git};
  \item If any are found, for each one, the corresponding script is downloaded, executed, and the SR status is updated to \texttt{COMPLETED} or \texttt{ERROR} depending on the execution outcome (through the SOAP service) \cite{srp_windowsservice_git};
 \end{enumerate}
 
@@ -97,4 +97,4 @@ Organizational Unit (OU) is a container within Active Directory (AD) used to log
 
 In the current system, this import occurs in a manner very similar to the SR scenario, but in reverse. It happens through an agent running on the customers' DCs, which periodically (every hour at :20) (downloads and) executes a series of PowerShell scripts to retrieve the necessary information, and deposits them in a specific system folder (\texttt{D:\textbackslash SRPortal\textbackslash Anag\textbackslash}) \cite{srp_windowsservice_git}. These files are then consumed by an SSIS job (one for each type of master data) that imports them into the database. The REST services then expose APIs to retrieve this information, which are used by the frontend to populate the action fields \cite{srp_webservicerest_git}.
 
-In the new system, it will be necessary to redesign this flow as well, in order to eliminate the dependence on agents on customer DCs. Even in this case, however, the PowerShell scripts cannot be modified \cite{requirements_meeting}, and must be executed as they are now. It will therefore be necessary to analyze how to integrate the execution of these scripts into the new flow, perhaps also leveraging Elmec's internal \textit{provisioning} system (\textit{Provision Prime} \cite{provision_prime_git}) in this case, in order to obtain a more traceable, reliable, and efficient system \cite{requirements_meeting}.
+In the new system, it will be necessary to redesign this flow as well, in order to eliminate the dependence on agents on customer DCs. Even in this case, however, the PowerShell scripts cannot be modified \cite{requirements_meeting}, and must be executed as they are now. It will therefore be necessary to analyze how to integrate the execution of these scripts into the new flow, perhaps also leveraging Elmec's~internal \textit{provisioning} system (\textit{Provision Prime} \cite{provision_prime_git}) in this case, in order to obtain a more traceable, reliable, and efficient system \cite{requirements_meeting}.

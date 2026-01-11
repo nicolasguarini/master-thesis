@@ -112,11 +112,11 @@ if to_update:
 \label{lst:differential_sync}
 \end{listing}
 
-This approach constructs in-memory dictionaries of existing records keyed by primary key, then iterates through source records to segregate them into create and update lists. Bulk operations execute with batch sizes appropriate for PostgreSQL, significantly outperforming individual save operations. An initial full synchronization strategy that deleted and recreated all records at each execution proved inefficient with SRP's large data volumes, resulting in execution times around 2 hours. The current differential logic significantly reduces database load, bringing average execution times down to approximately 20 seconds.
+This approach constructs in-memory dictionaries of existing records keyed by primary key, then iterates through source records to segregate them into create and update lists. Bulk operations execute with batch sizes appropriate for PostgreSQL, significantly outperforming individual save operations. An initial full synchronization strategy that deleted and recreated all records at each execution proved inefficient with SRP's~large data volumes, resulting in execution times around 2 hours. The current differential logic significantly reduces database load, bringing average execution times down to approximately 20 seconds.
 
 \subsection{Post-Import Enrichment}
 
-Following the base catalog import from SRP, the synchronization process executes several enrichment operations that apply SRM-specific configurations: API configuration synthesis creates \texttt{ExternalAPIConfiguration} records defining option sources for select fields; field duplication resolution identifies and resolves scenarios where multiple fields with identical names exist within the same action scope; HDA field configuration synthesizes metadata for external fields and classification fields; and customer-specific customizations translate SRP configurations into SRM's three-level hierarchy.
+Following the base catalog import from SRP, the synchronization process executes several enrichment operations that apply SRM-specific configurations: API configuration synthesis creates \texttt{ExternalAPIConfiguration} records defining option sources for select fields; field duplication resolution identifies and resolves scenarios where multiple fields with identical names exist within the same action scope; HDA field configuration synthesizes metadata for external fields and classification fields; and customer-specific customizations translate SRP configurations into SRM's~three-level hierarchy.
 
 The synchronization concludes by resetting PostgreSQL auto-increment sequences to prevent primary key conflicts on subsequent manual record creation.
 
@@ -149,11 +149,11 @@ sync_service_request_logs(cursor)
 \label{lst:history_sync}
 \end{listing}
 
-Service request field values imported from SRP must respect SRM's enhanced security model where sensitive fields are encrypted at rest. The synchronization implements transparent encryption during import, checking each field's sensitivity flag and applying encryption to values from sensitive fields. Execution logs stored in SRP use a numeric type code system incompatible with SRM's enumerated log types, requiring a mapping table that translates SRP codes to SRM equivalents (Creation, Approval, Execution Started, Execution Completed, etc.).
+Service request field values imported from SRP must respect SRM's~enhanced security model where sensitive fields are encrypted at rest. The synchronization implements transparent encryption during import, checking each field's~sensitivity flag and applying encryption to values from sensitive fields. Execution logs stored in SRP use a numeric type code system incompatible with SRM's~enumerated log types, requiring a mapping table that translates SRP codes to SRM equivalents (Creation, Approval, Execution Started, Execution Completed, etc.).
 
 \section{Dual Execution Flow Management}
 
-The coexistence architecture's core mechanism is the dynamic routing of service request execution based on action configuration. When a service request is created through the SRM API, the system evaluates the action's \texttt{target\_type} to determine whether to invoke the new or legacy execution pipeline, as illustrated in Listing \ref{lst:dual_flow}.
+The coexistence architecture's~core mechanism is the dynamic routing of service request execution based on action configuration. When a service request is created through the SRM API, the system evaluates the action's~\texttt{target\_type} to determine whether to invoke the new or legacy execution pipeline, as illustrated in Listing \ref{lst:dual_flow}.
 
 \begin{listing}[htbp]
 \begin{minted}[
@@ -188,7 +188,7 @@ else:
 \label{lst:dual_flow}
 \end{listing}
 
-For actions configured with \texttt{target\_type = SRP}, the serializer creates the HDA ticket but returns a non-persisted ServiceRequest object. The actual service request record will be created by SRP's legacy REST API when HDA invokes it, then synchronized into SRM's database by the nightly job. For actions with any non-SRP target type, the ServiceRequest record is persisted immediately with NEW status, and the asynchronous Celery task chain is initiated.
+For actions configured with \texttt{target\_type = SRP}, the serializer creates the HDA ticket but returns a non-persisted ServiceRequest object. The actual service request record will be created by SRP's~legacy REST API when HDA invokes it, then synchronized into SRM's~database by the nightly job. For actions with any non-SRP target type, the ServiceRequest record is persisted immediately with NEW status, and the asynchronous Celery task chain is initiated.
 
 The dual-flow architecture remains transparent to frontend applications, which interact exclusively with SRM APIs regardless of the underlying execution mechanism, ensuring that frontend applications require no modifications as actions are gradually migrated.
 

@@ -108,7 +108,7 @@ if to_update:
 
 This approach constructs in-memory dictionaries of existing records keyed by primary key, then iterates through source records to segregate them into create and update lists. Bulk operations execute with batch sizes appropriate for PostgreSQL, significantly outperforming individual save() calls. The \texttt{sync\_deletions} helper function identifies records present in SRM but absent from SRP, removing obsolete catalog entries to maintain synchronization.
 
-Specifically, an initial full synchronization strategy was adopted, which involved deleting and recreating all records at each job execution. However, this approach proved to be inefficient and problematic with SRP's large data volumes, resulting in average execution times of around 2 hours. The current differential logic significantly reduces the load on the database, bringing average execution times down to approximately 20 seconds.
+Specifically, an initial full synchronization strategy was adopted, which involved deleting and recreating all records at each job execution. However, this approach proved to be inefficient and problematic with SRP's~large data volumes, resulting in average execution times of around 2 hours. The current differential logic significantly reduces the load on the database, bringing average execution times down to approximately 20 seconds.
 
 \subsection{Relationship Resolution and Foreign Key Management}
 
@@ -142,13 +142,13 @@ This pattern prevents foreign key constraint violations while maintaining refere
 
 Following the base catalog import from SRP, the synchronization process executes several enrichment operations that apply SRM-specific configurations:
 
-\textbf{API Configuration Synthesis}: The \texttt{sync\_api\_configurations()} function creates \texttt{ExternalAPIConfiguration} records that define option sources for select fields, mapping SRP's simpler parameter-based options to SRM's sophisticated external API integration framework.
+\textbf{API Configuration Synthesis}: The \texttt{sync\_api\_configurations()} function creates \texttt{ExternalAPIConfiguration} records that define option sources for select fields, mapping SRP's~simpler parameter-based options to SRM's~sophisticated external API integration framework.
 
 \textbf{Field Duplication Resolution}: The \texttt{fix\_duplicated\_field\_names()} function identifies and resolves scenarios where multiple fields with identical names exist within the same action scope (considering action-level and customer-action-level configurations), a situation that would cause ambiguity in field references during form rendering and script parameter generation.
 
 \textbf{HDA Field Configuration}: The \texttt{sync\_hda\_fields()} function synthesizes configuration for HDA external fields and classification fields based on ticket type mappings, creating the metadata required for the frontend to render these additional input controls.
 
-\textbf{Customer-Specific Customizations}: The \texttt{sync\_customer\_specific\_customizations()} function processes SRP-specific configuration tables and translates them into SRM's three-level configuration hierarchy, creating \texttt{CustomerAction} and \texttt{CustomerActionField} records that override default behavior.
+\textbf{Customer-Specific Customizations}: The \texttt{sync\_customer\_specific\_customizations()} function processes SRP-specific configuration tables and translates them into SRM's~three-level configuration hierarchy, creating \texttt{CustomerAction} and \texttt{CustomerActionField} records that override default behavior.
 
 \subsection{Sequence Reset and Consistency Verification}
 
@@ -191,7 +191,7 @@ This date-based filtering defaults to the first day of the current month, import
 
 \subsection{Field Value Encryption and Sensitive Data Handling}
 
-Service request field values imported from SRP must respect SRM's enhanced security model where sensitive fields (passwords, credentials) are encrypted at rest. The \texttt{sync\_service\_request\_fields} function implements transparent encryption during import:
+Service request field values imported from SRP must respect SRM's~enhanced security model where sensitive fields (passwords, credentials) are encrypted at rest. The \texttt{sync\_service\_request\_fields} function implements transparent encryption during import:
 
 \begin{minted}[breaklines,fontsize=\small]{python}
 for record in records:
@@ -209,11 +209,11 @@ for record in records:
     )
 \end{minted}
 
-This encryption occurs transparently during synchronization, ensuring that legacy SRP data benefits from SRM's enhanced security protections without requiring modifications to the source system.
+This encryption occurs transparently during synchronization, ensuring that legacy SRP data benefits from SRM's~enhanced security protections without requiring modifications to the source system.
 
 \subsection{Log Unification and Type Mapping}
 
-Execution logs stored in SRP use a numeric type code system incompatible with SRM's enumerated log types. The synchronization implements a mapping table that translates SRP type codes to SRM equivalents:
+Execution logs stored in SRP use a numeric type code system incompatible with SRM's~enumerated log types. The synchronization implements a mapping table that translates SRP type codes to SRM equivalents:
 
 \begin{minted}[breaklines,fontsize=\small]{python}
 log_type_mapping = {
@@ -234,7 +234,7 @@ This mapping preserves log semantics across systems, enabling unified filtering 
 
 \section{Dual Execution Flow Management}
 
-The coexistence architecture's core mechanism is the dynamic routing of service request execution based on action configuration. When a service request is created through the SRM API, the system evaluates the action's \texttt{target\_type} to determine whether to invoke the new or legacy execution pipeline.
+The coexistence architecture's~core mechanism is the dynamic routing of service request execution based on action configuration. When a service request is created through the SRM API, the system evaluates the action's~\texttt{target\_type} to determine whether to invoke the new or legacy execution pipeline.
 
 \subsection{Legacy Flow Invocation}
 
@@ -261,7 +261,7 @@ if is_srp_flow:
     )
 \end{minted}
 
-This pattern creates the ticket through SRM's HDA integration (ensuring consistent ticket creation regardless of execution flow), but returns a non-persisted ServiceRequest object to the API consumer. The actual service request record will be created by SRP's legacy REST API when HDA invokes it with the ticket reference, then synchronized into SRM's database by the nightly \texttt{sync\_srp\_sr\_history} job.
+This pattern creates the ticket through SRM's~HDA integration (ensuring consistent ticket creation regardless of execution flow), but returns a non-persisted ServiceRequest object to the API consumer. The actual service request record will be created by SRP's~legacy REST API when HDA invokes it with the ticket reference, then synchronized into SRM's~database by the nightly \texttt{sync\_srp\_sr\_history} job.
 
 \subsection{Modern Flow Execution}
 
@@ -277,7 +277,7 @@ The migration strategy implements a risk-managed progression that validates the 
 
 \subsection{Phase 1: Internal Pilot}
 
-The initial migration phase configures a small subset of actions used exclusively by internal IT operations teams to execute through the SRM pipeline. These actions are selected based on criteria including low execution volume (limiting impact scope), non-critical business processes (tolerating potential issues), and comprehensive logging requirements (benefiting from SRM's enhanced observability). Internal teams provide direct feedback on execution behavior, error handling, and operational experience, enabling rapid iteration on issues discovered during real-world usage.
+The initial migration phase configures a small subset of actions used exclusively by internal IT operations teams to execute through the SRM pipeline. These actions are selected based on criteria including low execution volume (limiting impact scope), non-critical business processes (tolerating potential issues), and comprehensive logging requirements (benefiting from SRM's~enhanced observability). Internal teams provide direct feedback on execution behavior, error handling, and operational experience, enabling rapid iteration on issues discovered during real-world usage.
 
 \subsection{Phase 2: Customer Pilot}
 
@@ -329,7 +329,7 @@ The nightly synchronization schedule introduces up to 24-hour latency between co
 
 \subsection{Execution History Fragmentation}
 
-During the coexistence period, service request execution history is split between SRP and SRM systems, with the unified view available only in SRM after synchronization. Operational staff must be trained to query SRM exclusively for execution history rather than accessing SRP directly, ensuring consistent data interpretation. The synchronization job's recency filter means that very old historical data may not be available in SRM, requiring retained access to SRP for historical research.
+During the coexistence period, service request execution history is split between SRP and SRM systems, with the unified view available only in SRM after synchronization. Operational staff must be trained to query SRM exclusively for execution history rather than accessing SRP directly, ensuring consistent data interpretation. The synchronization job's~recency filter means that very old historical data may not be available in SRM, requiring retained access to SRP for historical research.
 
 \subsection{Performance Considerations}
 

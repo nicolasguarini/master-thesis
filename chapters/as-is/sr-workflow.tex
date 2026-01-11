@@ -37,8 +37,8 @@ A Service Request can be initiated primary through two channels \cite{azioni_ges
 As shown in Figure \ref{fig:flowchart-as-is-new-sr}, following the Service Request creation, the system evaluates whether the Service Request requires approval by the operators. The logic for setting the initial SR and HDA ticket states is as follows \cite{azioni_gestione_srp}:
 \begin{itemize}
     \item \textbf{If approval is required}: the Service Request is set to \texttt{WAITING FOR APPROVAL} status, and the corresponding HDA ticket is set to \texttt{QUALIFIED}. A communication is added to the ticket, indicating that the SR needs validation from an operator before execution;
-    \item \textbf{If no approval is required and it's linked to an automatism}: the Service Request enters a \texttt{PENDING} state, and the HDA ticket is set to \texttt{DELEGATED};
-    \item \textbf{If no approval is required and it's not linked to an automatism}: the Service Request is \texttt{ASSIGNED}, and the HDA ticket is set to \texttt{PASSED}. A communication is added to the ticket, noting that the SR requires manual processing by an operator.
+    \item \textbf{If no approval is required and it's~linked to an automatism}: the Service Request enters a \texttt{PENDING} state, and the HDA ticket is set to \texttt{DELEGATED};
+    \item \textbf{If no approval is required and it's~not linked to an automatism}: the Service Request is \texttt{ASSIGNED}, and the HDA ticket is set to \texttt{PASSED}. A communication is added to the ticket, noting that the SR requires manual processing by an operator.
 \end{itemize}
 
 \subsection{Approval and Execution Workflows}
@@ -49,7 +49,7 @@ As shown in Figure \ref{fig:flowchart-as-is-new-sr}, following the Service Reque
     \label{fig:flowchart-as-is-sr-approval}
 \end{figure}
 
-As shown in Figure \ref{fig:flowchart-as-is-sr-approval}, for SRs requiring approval (\texttt{WAITING FOR APPROVAL} state with an HDA \texttt{QUALIFIED} ticket), an operator's intervention is necessary to validate the request. The operator has three possible actions \cite{azioni_gestione_srp}:
+As shown in Figure \ref{fig:flowchart-as-is-sr-approval}, for SRs requiring approval (\texttt{WAITING FOR APPROVAL} state with an HDA \texttt{QUALIFIED} ticket), an operator's~intervention is necessary to validate the request. The operator has three possible actions \cite{azioni_gestione_srp}:
 \begin{itemize}
     \item \textbf{Cancel the SR}: the HDA ticket is set to \texttt{CLOSED ABORTED}, the SR status becomes \texttt{DECLINED}, and a notification email is sent to the requesting client;
     \item \textbf{Request client modification}: the HDA ticket is set to \texttt{WAITING USER}, the SR status becomes \texttt{SUSPENDED}, and a notification email is sent to the client. The workflow pauses until the client modifies the SR via the MyElmec platform;
@@ -65,7 +65,7 @@ As shown in Figure \ref{fig:flowchart-as-is-sr-approval}, for SRs requiring appr
 
 As shown in Figure \ref{fig:flowchart-as-is-sr-approved}, once a SR is approved, SRP manages its subsequent flow based on whether it is linked to an automatism \cite{azioni_gestione_srp}:
 \begin{itemize}
-    \item \textbf{If the SR is linked to an automatism}: the SR transitions to a \texttt{PENDING} state, while the HDA ticket remains \texttt{DELEGATED}. This implies it's awaiting automated execution;
+    \item \textbf{If the SR is linked to an automatism}: the SR transitions to a \texttt{PENDING} state, while the HDA ticket remains \texttt{DELEGATED}. This implies it's~awaiting automated execution;
     \item \textbf{If the SR is not linked to an automatism}: the SR is immediately set to \texttt{ASSIGNED}, and the HDA ticket is moved to \texttt{PASSED}. A note is added to the ticket indicating that the SR requires manual processing.
 \end{itemize}
 
@@ -82,7 +82,7 @@ As shown in Figure \ref{fig:flowchart-as-is-sr-pending}, an SR in \texttt{PENDIN
     \item \textbf{Unsuccessful execution}: the SR transitions to an \texttt{ERROR} state, and the HDA ticket is set to \texttt{PASSED}. Communication regarding the error is added to the ticket for visibility within HDA. The SR will be then handled manually by an operator.
 \end{itemize}
 
-The execution of Service Requests themselves can involve the SRP Agent on the client's Domain Controller for operations requiring client-side interaction (e.g., Network, Active Directory or Exchange environment changes, for example). The SRP Agent (installed on every enabled customers' Domain Controller) periodically checks \texttt{ELMEC-SRP01} (a on-premise server hosting the MSSQL DB and the core business logic) for pending SRs. If found, it retrieves the SR details, donwloads the relevant PowerShell script, and executes it. The agent then informs ELMEC-SRP01 that the SR is running \cite{srp_windowsservice_git}. Monitoring is performed by a scheduled task on the client side, which checks the PowerShell script's log file every minute. A "KEY" in the log indicates completion, prompting the SRP Agent to inform \texttt{ELMEC-SRP01} to set the SR to COMPLETED, triggering an HDA status update. An "ERROR" key indicates failure, leading to the log being sent to \texttt{ELMEC-SRP01} and an error signal. A timeout mechanism also signals an error if completion is not detected within a specified duration \cite{srp_windowsservice_git}.
+The execution of Service Requests themselves can involve the SRP Agent on the client's~Domain Controller for operations requiring client-side interaction (e.g., Network, Active Directory or Exchange environment changes, for example). The SRP Agent (installed on every enabled customers' Domain Controller) periodically checks \texttt{ELMEC-SRP01} (a on-premise server hosting the MSSQL DB and the core business logic) for pending SRs. If found, it retrieves the SR details, donwloads the relevant PowerShell script, and executes it. The agent then informs ELMEC-SRP01 that the SR is running \cite{srp_windowsservice_git}. Monitoring is performed by a scheduled task on the client side, which checks the PowerShell script's~log file every minute. A "KEY" in the log indicates completion, prompting the SRP Agent to inform \texttt{ELMEC-SRP01} to set the SR to COMPLETED, triggering an HDA status update. An "ERROR" key indicates failure, leading to the log being sent to \texttt{ELMEC-SRP01} and an error signal. A timeout mechanism also signals an error if completion is not detected within a specified duration \cite{srp_windowsservice_git}.
 
 A constraint that must be respected is that the high-level flow (state transitions and mapping between SR states and HDA ticket states) must not be modified, as it represents an established and approved process that also encompasses organizational and accountability aspects among various Elmec departments \cite{requirements_meeting}: those who configure and manage the catalog and related Service Requests (Managed Services, MxS, team), those who develop and maintain the product (Innovation team), and those responsible for the ticket management system (Customer Process Integration, CPI, team).
 The technological and implementation aspects, on the other hand, can and should be redesigned and improved \cite{requirements_meeting}, as will be explored in the following chapters.

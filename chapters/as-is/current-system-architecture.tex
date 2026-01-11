@@ -17,16 +17,16 @@ The overall architecture is depicted in the diagram in figure \ref{fig:as-is-sys
   \label{fig:as-is-system-design}
 \end{figure}
 
-The system's operational flow involves several key components across both networks, orchestrating the processing of service requests.
+The system's~operational flow involves several key components across both networks, orchestrating the processing of service requests.
 
 \subsection{Main Functionalities and Components}
 The current \textit{SRP} system relies on a suite of interconnected components, each serving a specific role in the lifecycle of a service request.
 
-Elmec's Network Components:
+Elmec's~Network Components:
 \begin{itemize}
     \item \textbf{SRP Web Sevice REST} \cite{srp_webservicerest_git}:  Deployed on a Kubernetes cluster, exposes .NET Core RESTful services \cite{service_request_portal}. It serves as the primary interface for external systems such as:
     \begin{itemize}
-        \item \textbf{Delivery Portal}: An internal asset management system used to manage Service Request catalog configuration and Elmec's internal and client servers;
+        \item \textbf{Delivery Portal}: An internal asset management system used to manage Service Request catalog configuration and Elmec's~internal and client servers;
         \item \textbf{HDA (HelpDeskAdvanced)}: An internal ticket management system. Each service request is intrinsically linked to an HDA ticket via an ID, and HDA is responsible for initiating and associating service requests with existing tickets.
         \item \textbf{MyElmec}: A customer-facing portal enabling customers to create, manage, and monitor the various services provided by Elmec (e.g., servers, management software, cloud solutions).
     \end{itemize}
@@ -36,11 +36,11 @@ Elmec's Network Components:
     \item \textbf{ELMEC-SRP01}: This Windows Server functions as the core engine for service requests within the Elmec network. It houses all the PowerShell scripts associated with individual service requests, which are maintained by the MxS (Managed Services) team \cite{service_request_portal}. Key components residing on \texttt{ELMEC-SRP01} include:
     \begin{itemize}
         \item \textbf{SRP WebServiceSoap}: This component provides SOAP services primarily for communication with the SRP Agent located on the client side. It interacts with the database to retrieve necessary information before exposing it to the agents for Service Request execution \cite{srp_webservice_git}.
-        \item \textbf{SRP InternalWorker}: A Windows service that operates similarly to the SRP Agent but executes entirely within the Elmec network. This is utilized for service requests that do not require interaction with the client's network or Active Directory (e.g., managed VM-related service requests). The InternalWorker queries the database every 10 seconds for "internal worker" type jobs (like removing a server from a patching session, or resetting a managed Virtual Machine), connects to the SOAP service, retrieves the Service Request ID and its fields, and initiates job execution. It also monitors logs every 30 seconds to determine the job's status \cite{srp_internalworker_git}.
+        \item \textbf{SRP InternalWorker}: A Windows service that operates similarly to the SRP Agent but executes entirely within the Elmec network. This is utilized for service requests that do not require interaction with the client's~network or Active Directory (e.g., managed VM-related service requests). The InternalWorker queries the database every 10 seconds for "internal worker" type jobs (like removing a server from a patching session, or resetting a managed Virtual Machine), connects to the SOAP service, retrieves the Service Request ID and its fields, and initiates job execution. It also monitors logs every 30 seconds to determine the job's~status \cite{srp_internalworker_git}.
     \end{itemize}
 \end{itemize}
 
-The only component in the client's network is called \textbf{Domain Controller}, which represents the client's Active Directory domain controller, where the communication tools with Elmec are installed. It hosts:
+The only component in the client's~network is called \textbf{Domain Controller}, which represents the client's~Active Directory domain controller, where the communication tools with Elmec are installed. It hosts:
 \begin{itemize}
     \item \textbf{SRP Agent (.NET Windows Service)}: Typically, one agent is configured per client domain, specifically for Active Directory (AD) and Exchange-related service requests. This agent performs two main functions \cite{srp_windowsservice_git}:
     \begin{itemize}
@@ -52,9 +52,9 @@ The only component in the client's network is called \textbf{Domain Controller},
 \end{itemize}
 
 \subsection{Interactions and Communication Between Customers and Company Networks}
-The Communication between the company network and the customers' networks is a critical aspect of the SRP system's operations and is handled through the \textbf{DMI Console} \cite{service_request_portal}.
+The Communication between the company network and the customers' networks is a critical aspect of the SRP system's~operations and is handled through the \textbf{DMI Console} \cite{service_request_portal}.
 
-The DMI console serves as a key infrastructural component, primarily acting as a communication bridge between the customer's network and Elmec's internal network. Specifically, for the SRP system, the DMI console is responsible for transferring service requests (SR) from the customer's network to Elmec's internal network, although it does not handle traffic in the opposite direction \cite{dmi_infrastructure_git}.
+The DMI console serves as a key infrastructural component, primarily acting as a communication bridge between the customer's~network and Elmec's~internal network. Specifically, for the SRP system, the DMI console is responsible for transferring service requests (SR) from the customer's~network to Elmec's~internal network, although it does not handle traffic in the opposite direction \cite{dmi_infrastructure_git}.
 
 \subsubsection{Operation of the DMI Console}
 The connectivity of the DMI appliances to Elmec is established through multiple OpenVPN connections, initiated by the appliance towards the Brunello 4 and Mendrisio Data Centers (for Swiss customers). The DMI consoles are not directly exposed to the Internet and are accessible only by authorized personnel \cite{dmi_infrastructure_git}.

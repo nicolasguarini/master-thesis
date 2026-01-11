@@ -1,24 +1,24 @@
 \chapter*{Conclusions}
 \addcontentsline{toc}{chapter}{Conclusions}
 
-This thesis presented the complete redesign and implementation of Elmec's Service Request management system, successfully transforming a legacy distributed monolith into a modern, scalable microservices architecture. The project addressed critical limitations in the legacy SRP system while maintaining business continuity through a carefully orchestrated migration strategy.
+This thesis presented the complete redesign and implementation of Elmec's~Service Request management system, successfully transforming a legacy distributed monolith into a modern, scalable microservices architecture. The project addressed critical limitations in the legacy SRP system while maintaining business continuity through a carefully orchestrated migration strategy.
 
 %\section*{Key Achievements}
 
 The architectural redesign resolved fundamental issues that had accumulated over years of organic system growth. The monolithic frontend component, previously exceeding 11,000 lines of hard-coded business logic, was reduced to a lean 1,000-line interface through centralization of configuration logic in the backend. The three-level configuration hierarchy (Fields → Actions → Customers) introduced unprecedented flexibility in catalog management, enabling customer-specific customizations without code duplication or catalog fragmentation.
 
-The elimination of the SRP Agent dependency represented a major architectural breakthrough. Integration with Provision Prime's Ansible-based provisioning system removed security risks associated with domain-admin credentials on customer infrastructure, eliminated polling-based communication inefficiencies, and enabled centralized logging through S3-compatible object storage. This transition from agent-based to agentless execution fundamentally improved system reliability and operational transparency.
+The elimination of the SRP Agent dependency represented a major architectural breakthrough. Integration with Provision Prime's~Ansible-based provisioning system removed security risks associated with domain-admin credentials on customer infrastructure, eliminated polling-based communication inefficiencies, and enabled centralized logging through S3-compatible object storage. This transition from agent-based to agentless execution fundamentally improved system reliability and operational transparency.
 
 The migration from unversioned Stored Procedures and SSIS jobs to version-controlled Python code within a comprehensive CI/CD pipeline transformed development practices. The implementation of automated quality gates, security scanning, and environment-specific deployment workflows ensures code quality while enabling rapid iteration. The adoption of PostgreSQL with properly enforced referential integrity constraints eliminated the data inconsistencies that plagued the legacy SQL Server database.
 
 %\section*{Innovation in User Experience}
 
-The RAG-enhanced recommendation system represents a significant innovation in enterprise service request management. By combining Large Language Models with semantic retrieval over the catalog, the system enables natural language-based action discovery that dramatically reduces cognitive load for end users. The architecture's emphasis on explainability through transparent reasoning addresses the trust requirements critical for enterprise adoption, distinguishing this implementation from consumer-facing recommendation systems.
+The RAG-enhanced recommendation system represents a significant innovation in enterprise service request management. By combining Large Language Models with semantic retrieval over the catalog, the system enables natural language-based action discovery that dramatically reduces cognitive load for end users. The architecture's~emphasis on explainability through transparent reasoning addresses the trust requirements critical for enterprise adoption, distinguishing this implementation from consumer-facing recommendation systems.
 
 %\section*{Practical Impact and Future Directions}
 
 The phased coexistence strategy successfully balanced innovation with operational stability, enabling incremental validation through internal pilots, customer pilots, and progressive expansion. This risk-managed approach avoided the disruptions common in "big bang" migrations while building organizational confidence in the new architecture.
 
-Future enhancements to the recommendation system, including persistent vector stores, conversational refinement, and personalized ranking, offer clear paths for continued improvement. The modular architecture facilitates these extensions without requiring fundamental redesign, demonstrating the system's capacity for evolution alongside emerging technologies and changing business requirements.
+Future enhancements to the recommendation system, including persistent vector stores, conversational refinement, and personalized ranking, offer clear paths for continued improvement. The modular architecture facilitates these extensions without requiring fundamental redesign, demonstrating the system's~capacity for evolution alongside emerging technologies and changing business requirements.
 
 This work demonstrates that legacy enterprise systems, despite accumulated technical debt and architectural constraints, can be successfully modernized through careful analysis, principled design, and pragmatic migration strategies. The ServiceRequestManager stands as evidence that substantial architectural improvements are achievable while maintaining the business continuity essential in production environments serving large enterprise clients.
