@@ -1,0 +1,57 @@
+{
+"command": "highlight",
+"code":
+"""\
+def validate_field_value_regex(
+    field: Field, value: str | None, **_kwargs
+) -> None:
+    if field.validation_regex and value:
+        if not re.fullmatch(field.validation_regex, value):
+            raise serializers.ValidationError({
+                \"fields_validation\": [
+                    f\"The value '{value}' does not match pattern\"
+                ]
+            })
+""",
+"pyopt.lexer": "python",
+"pyopt.commandprefix": "PYG",
+"pyopt.autogobble": "false",
+"pyopt.encoding": "utf8",
+"pyopt.extrakeywords": "",
+"pyopt.extrakeywordsconstant": "",
+"pyopt.extrakeywordsdeclaration": "",
+"pyopt.extrakeywordsnamespace": "",
+"pyopt.extrakeywordspseudo": "",
+"pyopt.extrakeywordsreserved": "",
+"pyopt.extrakeywordstype": "",
+"pyopt.funcnamehighlighting": "true",
+"pyopt.gobble": "0",
+"pyopt.gobblefilter": "0",
+"pyopt.keywordcase": "none",
+"pyopt.literalenvname": "MintedVerbatim",
+"pyopt.mathescape": "false",
+"pyopt.python3": "true",
+"pyopt.rangeregexmatchnumber": "1",
+"pyopt.rangeregexdotall": "false",
+"pyopt.rangeregexmultiline": "false",
+"pyopt.startinline": "false",
+"pyopt.stripall": "false",
+"pyopt.stripnl": "false",
+"pyopt.texcl": "false",
+"pyopt.texcomments": "false",
+"pyopt.codetagify": "",
+"pyopt.escapeinside": "",
+"pyopt.literatecomment": "",
+"pyopt.rangestartstring": "",
+"pyopt.rangestartafterstring": "",
+"pyopt.rangestopstring": "",
+"pyopt.rangestopbeforestring": "",
+"pyopt.rangeregex": "",
+"jobname": "main",
+"timestamp": "20260111173443",
+"currentfilepath": "chapters/implementation",
+"currentfile": "implementation.tex",
+"inputlineno": "256",
+"cachepath": "",
+"highlightfilename": "_FAD58DE7366495DB4650CFEFAC2FCD61.highlight.minted",
+}
