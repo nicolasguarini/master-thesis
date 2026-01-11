@@ -521,3 +521,45 @@ The current system operates reactively, responding to explicit user queries. Pro
 These proactive capabilities would require integration with user profile data, activity tracking systems, and potentially training of user embedding models that map users to action preferences in a shared embedding space. The recommendation interface could present proactive suggestions as a "Recommended for You" section alongside the query input, providing value even before users articulate specific needs.
 
 The combination of these enhancements would evolve the system from a query-driven action lookup tool into a comprehensive intelligent assistant for service request management, combining semantic understanding, personalization, and proactive guidance to substantially reduce friction in the service request creation workflow.
+
+\section{Evaluation System}
+To assess the quality and reliability of the RAG-based recommendation system, a comprehensive evaluation framework was developed. This framework enables systematic testing of recommendation accuracy across diverse user queries and action categories, providing quantitative metrics that guide system improvements and validate deployment readiness.
+
+\subsection{Dataset Construction}
+The evaluation dataset was constructed through a hybrid approach combining real-world user queries with synthetically generated prompts designed to ensure comprehensive coverage of the action catalog. Production logs from the recommendation system API provided authentic user queries that capture natural language patterns and terminology actually used by end users. These real queries were augmented with manually crafted prompts for less frequently requested actions, ensuring that evaluation coverage extends beyond the most popular services.
+
+The synthetic prompts were designed to reflect realistic usage patterns while accounting for the technical competence level of authorized users. Individuals granted permissions to create service requests typically possess foundational IT knowledge and operational experience, as these permissions are restricted to technically qualified personnel. The synthetic prompts therefore balance accessibility for non-expert users with technical precision, avoiding both oversimplification that would misrepresent actual usage and excessive jargon that would exclude legitimate users.
+
+Prompt diversity was deliberately engineered to capture varied formulation styles: direct technical requests ("create AD user account"), business-oriented descriptions ("set up email access for new employee"), troubleshooting scenarios ("user cannot access shared folder"), and implicit intent statements ("onboarding new hire"). This diversity ensures the evaluation dataset reflects the full spectrum of natural language patterns the system will encounter in production.
+
+All prompts were manually labeled with action IDs through careful examination of catalog definitions and field requirements. This manual labeling, provides maximum confidence in label quality, eliminating the noise and ambiguity that would result from automated labeling. Each prompt-action pair was validated to ensure that the labeled action represents the correct and most appropriate match for the user intent expressed in the prompt.
+
+The final dataset comprises approximately 100 labeled examples spanning the major action categories (System, Personal, Network). Category labels enable stratified analysis of system performance, revealing whether the recommendation engine performs better for certain action types than others. This category-level granularity supports targeted improvements, as performance disparities across categories may indicate deficiencies in catalog documentation, embedding quality, or prompt engineering for specific service domains.
+
+\subsection{Evaluation Metrics}
+
+The evaluation framework computes several complementary metrics that assess different aspects of recommendation quality:
+
+\textbf{Accuracy@1} measures the proportion of queries where the top-ranked recommendation matches the ground-truth action. This metric directly reflects the user experience for users who select the first suggestion without examining alternatives, representing a critical threshold for system utility.
+
+\textbf{Accuracy@3} evaluates whether the correct action appears anywhere in the top-3 recommendations. This metric accounts for scenarios where users scan multiple suggestions before selecting, providing a more lenient assessment that captures the system's ability to surface relevant actions even when ranking is imperfect.
+
+\textbf{Average Confidence (Top-1)} computes the mean confidence score assigned to the highest-ranked recommendation across all queries. High average confidence paired with high accuracy indicates well-calibrated uncertainty estimation, while high confidence with low accuracy suggests overconfidence requiring prompt engineering adjustments.
+
+\textbf{Average Confidence (Correct)} isolates the confidence scores for correctly recommended actions, revealing whether the system exhibits appropriate confidence when making accurate predictions. Substantial gaps between this metric and overall top-1 confidence may indicate that the LLM can distinguish high-quality from low-quality matches through its confidence scores.
+
+\textbf{Category-Specific Metrics} stratify accuracy and confidence measurements by action category, enabling identification of performance variations across service domains. Categories with notably lower accuracy warrant investigation into potential causes such as ambiguous action descriptions, insufficient catalog documentation, or embedding model limitations for domain-specific terminology.
+
+\textbf{Error Analysis} examines failed recommendations to identify common failure patterns. The framework exports detailed error reports containing the original prompt, expected action, predicted action, confidence score, and all returned matches. Manual review of these failures informs iterative improvements to catalog documentation, prompt templates, and retrieval parameters.
+
+\subsection{Evaluation Implementation}
+The evaluation system is implemented as a Python script that interfaces with the recommendation API through HTTP requests, simulating realistic client interactions. For each example in the dataset, the evaluator submits the prompt to the \texttt{/match} endpoint, receives the structured JSON response containing three ranked recommendations, and compares the returned action IDs against the label.
+
+The implementation incorporates several practical considerations for reliable evaluation: API health checks verify system availability before evaluation begins, preventing silent failures; request throttling (500ms delay between queries) prevents API overload while maintaining realistic load patterns; timeout handling (100s per request) accommodates the initialization overhead of the on-demand embedding strategy; and comprehensive error logging captures both API failures and validation errors for post-hoc debugging.
+
+Results are persisted in multiple formats to support different analysis workflows. A JSON output file contains complete evaluation details including all metrics, category-level breakdowns, and per-query results with predictions and confidence scores. A CSV export isolates failed predictions with their full context, facilitating manual error analysis and iterative dataset refinement. Console output provides real-time progress tracking and immediate visibility into system performance during evaluation runs.
+
+\subsection{Preliminary Results and Analysis}
+TODO.
+
+This evaluation framework establishes a reproducible methodology for assessing recommendation quality throughout the system lifecycle. As the catalog evolves and the recommendation system receives enhancements (persistent indexing, conversational refinement, personalization), the evaluation dataset can be expanded and re-run to validate that changes improve rather than degrade performance. This continuous evaluation capability supports data-driven iteration and provides empirical evidence for deployment decisions.
