@@ -1,9 +1,0 @@
-\begin{MintedVerbatim}[commandchars=\\\{\}]
-\PYG{c+c1}{\PYGZsh{} Template example for UPN autofill}
-\PYG{n}{autofill\PYGZus{}template} \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{\PYGZob{}\PYGZob{}}\PYG{l+s+s2}{ first\PYGZus{}name \PYGZcb{}\PYGZcb{}.}\PYG{l+s+s2}{\PYGZob{}\PYGZob{}}\PYG{l+s+s2}{ last\PYGZus{}name \PYGZcb{}\PYGZcb{}}\PYG{l+s+s2}{\PYGZdq{}}
-\PYG{c+c1}{\PYGZsh{} Renders to: \PYGZdq{}john.doe\PYGZdq{} when first\PYGZus{}name=\PYGZdq{}john\PYGZdq{}, last\PYGZus{}name=\PYGZdq{}doe\PYGZdq{}}
-
-\PYG{c+c1}{\PYGZsh{} API endpoint pattern with templating}
-\PYG{n}{endpoint\PYGZus{}pattern} \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{/api/customers/}\PYG{l+s+s2}{\PYGZob{}\PYGZob{}}\PYG{l+s+s2}{ idrs \PYGZcb{}\PYGZcb{}/adusers?domain=}\PYG{l+s+s2}{\PYGZob{}\PYGZob{}}\PYG{l+s+s2}{ domain \PYGZcb{}\PYGZcb{}}\PYG{l+s+s2}{\PYGZdq{}}
-\PYG{c+c1}{\PYGZsh{} ...}
-\end{MintedVerbatim}

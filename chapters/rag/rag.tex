@@ -262,7 +262,9 @@ The retriever is configured to return the top-5 most semantically similar action
 
 The system integrates with GPT-OSS-120B through an OpenAI-compatible API interface exposed by the company's~LLM serving infrastructure. The \texttt{ChatOpenAI} wrapper from LangChain provides a standardized interface that abstracts the specifics of the serving layer, enabling future model substitution without requiring changes to the RAG pipeline logic.
 
-The temperature parameter is set to 0, enforcing deterministic sampling that produces consistent outputs for repeated queries. This determinism is critical for production deployment, where users expect reproducible recommendations and where inconsistent results would undermine trust in the system.
+The temperature parameter is set to 0 to minimize variance in the model's output \cite{holtzman2020curiouscaseneuraltext}. While a zero temperature does not guarantee absolute determinism due to non-deterministic floating-point operations in GPU kernels and variations in serving infrastructure \cite{Ouyang_2025}, it ensures that the model consistently selects the highest-probability tokens \cite{holtzman2020curiouscaseneuraltext}. This approach significantly enhances the reliability and predictability of recommendations in a production environment.
+
+Research indicates that asynchronous execution of atomic operations and variations in kernel-level reduction sums can introduce infinitesimal numerical shifts \cite{Ouyang_2025}. These discrepancies, can occasionally alter the final softmax distribution, leading to different token selections even under identical input conditions \cite{holtzman2020curiouscaseneuraltext}\cite{Ouyang_2025}.
 
 \subsubsection{RAG Chain Composition}
 
