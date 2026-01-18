@@ -672,26 +672,97 @@ url={https://openreview.net/forum?id=rygGQyrFvH}
   publisher={Cambridge University Press}
 }
 
-@ARTICLE{juvekar2024introducingnewhyperparameterrag,
-       author = {{Juvekar}, Kush and {Purwar}, Anupam},
-        title = "{Introducing a new hyper-parameter for RAG: Context Window Utilization}",
-      journal = {arXiv e-prints},
-     keywords = {Computer Science - Computation and Language, Computer Science - Emerging Technologies},
-         year = 2024,
-        month = jul,
-          eid = {arXiv:2407.19794},
-        pages = {arXiv:2407.19794},
-          doi = {10.48550/arXiv.2407.19794},
-archivePrefix = {arXiv},
-       eprint = {2407.19794},
- primaryClass = {cs.CL},
-       adsurl = {https://ui.adsabs.harvard.edu/abs/2024arXiv240719794J},
-      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+@misc{juvekar2024introducingnewhyperparameterrag,
+      title={Introducing a new hyper-parameter for RAG: Context Window Utilization}, 
+      author={Kush Juvekar and Anupam Purwar},
+      year={2024},
+      eprint={2407.19794},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2407.19794}, 
 }
 
+@InProceedings{borgeaud2022improvinglanguagemodelsretrieving,
+  title = 	 {Improving Language Models by Retrieving from Trillions of Tokens},
+  author =       {Borgeaud, Sebastian and Mensch, Arthur and Hoffmann, Jordan and Cai, Trevor and Rutherford, Eliza and Millican, Katie and Van Den Driessche, George Bm and Lespiau, Jean-Baptiste and Damoc, Bogdan and Clark, Aidan and De Las Casas, Diego and Guy, Aurelia and Menick, Jacob and Ring, Roman and Hennigan, Tom and Huang, Saffron and Maggiore, Loren and Jones, Chris and Cassirer, Albin and Brock, Andy and Paganini, Michela and Irving, Geoffrey and Vinyals, Oriol and Osindero, Simon and Simonyan, Karen and Rae, Jack and Elsen, Erich and Sifre, Laurent},
+  booktitle = 	 {Proceedings of the 39th International Conference on Machine Learning},
+  pages = 	 {2206--2240},
+  year = 	 {2022},
+  editor = 	 {Chaudhuri, Kamalika and Jegelka, Stefanie and Song, Le and Szepesvari, Csaba and Niu, Gang and Sabato, Sivan},
+  volume = 	 {162},
+  series = 	 {Proceedings of Machine Learning Research},
+  month = 	 {17--23 Jul},
+  publisher =    {PMLR},
+  pdf = 	 {https://proceedings.mlr.press/v162/borgeaud22a/borgeaud22a.pdf},
+  url = 	 {https://proceedings.mlr.press/v162/borgeaud22a.html},
+  abstract = 	 {We enhance auto-regressive language models by conditioning on document chunks retrieved from a large corpus, based on local similarity with preceding tokens. With a 2 trillion token database, our Retrieval-Enhanced Transformer (RETRO) obtains comparable performance to GPT-3 and Jurassic-1 on the Pile, despite using 25{\texttimes} fewer parameters. After fine-tuning, RETRO performance translates to downstream knowledge-intensive tasks such as question answering. RETRO combines a frozen Bert retriever, a differentiable encoder and a chunked cross-attention mechanism to predict tokens based on an order of magnitude more data than what is typically consumed during training. We typically train RETRO from scratch, yet can also rapidly RETROfit pre-trained transformers with retrieval and still achieve good performance. Our work opens up new avenues for improving language models through explicit memory at unprecedented scale.}
+}
 
+@article{Huang_2025,
+author = {Huang, Lei and Yu, Weijiang and Ma, Weitao and Zhong, Weihong and Feng, Zhangyin and Wang, Haotian and Chen, Qianglong and Peng, Weihua and Feng, Xiaocheng and Qin, Bing and Liu, Ting},
+title = {A Survey on Hallucination in Large Language Models: Principles, Taxonomy, Challenges, and Open Questions},
+year = {2025},
+issue_date = {March 2025},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {43},
+number = {2},
+issn = {1046-8188},
+url = {https://doi.org/10.1145/3703155},
+doi = {10.1145/3703155},
+abstract = {The emergence of large language models (LLMs) has marked a significant breakthrough in natural language processing (NLP), fueling a paradigm shift in information acquisition. Nevertheless, LLMs are prone to hallucination, generating plausible yet nonfactual content. This phenomenon raises significant concerns over the reliability of LLMs in real-world information retrieval (IR) systems and has attracted intensive research to detect and mitigate such hallucinations. Given the open-ended general-purpose attributes inherent to LLMs, LLM hallucinations present distinct challenges that diverge from prior task-specific models. This divergence highlights the urgency for a nuanced understanding and comprehensive overview of recent advances in LLM hallucinations. In this survey, we begin with an innovative taxonomy of hallucination in the era of LLM and then delve into the factors contributing to hallucinations. Subsequently, we present a thorough overview of hallucination detection methods and benchmarks. Our discussion then transfers to representative methodologies for mitigating LLM hallucinations. Additionally, we delve into the current limitations faced by retrieval-augmented LLMs in combating hallucinations, offering insights for developing more robust IR systems. Finally, we highlight the promising research directions on LLM hallucinations, including hallucination in large vision-language models and understanding of knowledge boundaries in LLM hallucinations.},
+journal = {ACM Trans. Inf. Syst.},
+month = jan,
+articleno = {42},
+numpages = {55},
+keywords = {Large Language Models, Hallucination, Factuality, Faithfulness}
+}
 
-@online{nltk,
-  title={NLTK - Natural Language Toolkit},
-  url={https://www.nltk.org/}
+@inproceedings{wang2020minilm,
+  title     = {MiniLM: Deep Self-Attention Distillation for Task-Agnostic Compression of Pre-Trained Transformers},
+  author    = {Wang, Wenhui and Wei, Furu and Dong, Li and Bao, Hangbo and Yang, Nan and Zhou, Ming},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {33},
+  pages     = {5776--5788},
+  year      = {2020},
+  publisher = {Curran Associates, Inc.},
+  url       = {https://proceedings.neurips.cc/paper/2020/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf}
+}
+
+@article{Beurer_Kellner_2023,
+   title={Prompting Is Programming: A Query Language for Large Language Models},
+   volume={7},
+   ISSN={2475-1421},
+   url={http://dx.doi.org/10.1145/3591300},
+   DOI={10.1145/3591300},
+   number={PLDI},
+   journal={Proceedings of the ACM on Programming Languages},
+   publisher={Association for Computing Machinery (ACM)},
+   author={Beurer-Kellner, Luca and Fischer, Marc and Vechev, Martin},
+   year={2023},
+   month=jun, pages={1946-1969} }
+
+@inproceedings{karpukhin-etal-2020-dense,
+    title = "Dense Passage Retrieval for Open-Domain Question Answering",
+    author = "Karpukhin, Vladimir  and
+      Oguz, Barlas  and
+      Min, Sewon  and
+      Lewis, Patrick  and
+      Wu, Ledell  and
+      Edunov, Sergey  and
+      Chen, Danqi  and
+      Yih, Wen-tau",
+    editor = "Webber, Bonnie  and
+      Cohn, Trevor  and
+      He, Yulan  and
+      Liu, Yang",
+    booktitle = "Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)",
+    month = nov,
+    year = "2020",
+    address = "Online",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2020.emnlp-main.550/",
+    doi = "10.18653/v1/2020.emnlp-main.550",
+    pages = "6769--6781",
+    abstract = "Open-domain question answering relies on efficient passage retrieval to select candidate contexts, where traditional sparse vector space models, such as TF-IDF or BM25, are the de facto method. In this work, we show that retrieval can be practically implemented using dense representations alone, where embeddings are learned from a small number of questions and passages by a simple dual-encoder framework. When evaluated on a wide range of open-domain QA datasets, our dense retriever outperforms a strong Lucene-BM25 system greatly by 9{\%}-19{\%} absolute in terms of top-20 passage retrieval accuracy, and helps our end-to-end QA system establish new state-of-the-art on multiple open-domain QA benchmarks."
 }
