@@ -2,7 +2,7 @@
 
 After gathering and defining the requirements for the new \textit{ServiceRequestManager (SRM)} system through various meetings with stakeholders and a deep analysis of the current system (SRP), it has been possible to design a new architecture for the system that allows for efficient and scalable satisfaction of these requirements.
 
-The proposed new architecture for the SRM system, shown in Figure \ref{fig:new-system-architecture}, is based on a \textbf{microservices architecture}, which allows for greater modularity, scalability, and ease of maintenance compared to the distributed-monolithic architecture of the current SRP system \cite{from_monolithic_architecture_to_microservices_architecture}.
+The proposed new architecture for the SRM system, shown in Figure \ref{fig:new-system-architecture}, is based on a \textbf{microservices architecture} \cite{Dragoni2017}, which allows for greater modularity, scalability, and ease of maintenance compared to the distributed-monolithic architecture of the current SRP system \cite{from_monolithic_architecture_to_microservices_architecture}.
 
 \begin{figure}[htbp]
     \centering
@@ -58,4 +58,4 @@ Both system metrics (CPU, memory, database usage, API response times, etc.) and 
 \subsubsection{Containerization and Container Orchestration System}
 To facilitate system deployment, scalability, and management, a containerization system (Docker) will be used in combination with a container orchestration system (Kubernetes).
 
-This will allow isolating the different system components, simplifying the deployment process, and ensuring greater resilience and scalability of the system, through functionalities such as replicas, chronjobs, automatic scaling of pods, and so on \cite{kubernetes}.
+This will allow isolating the different system components, simplifying the deployment process, and ensuring greater resilience and scalability of the system, through functionalities such as replicas, chronjobs, automatic scaling of pods, and so on \cite{kube_book}.

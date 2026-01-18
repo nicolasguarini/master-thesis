@@ -1,22 +1,9 @@
-@online{k3s,
-  title = "K3s - Lightweight Kubernetes",
-  url = "https://docs.k3s.io/",
-  keyworks = "kubernetes,k3s"
-}
-
-@book{kube_book,
-title	= {Kubernetes - Scheduling the Future at Cloud Scale},
-author	= {David K. Rensin},
-year	= {2015},
-URL	= {http://www.oreilly.com/webops-perf/free/kubernetes.csp},
-booktitle	= {OSCON 2015},
-pages	= {All},
-}
-
-@online{luks,
-  title = "Cryptsetup and LUKS - open-source disk encryption",
-  url = "https://gitlab.com/cryptsetup/cryptsetup",
-  keyworks = "LUKS,disk encryption"
+@misc{kube_book,
+  title        = {Kubernetes: Scheduling the Future at Cloud Scale},
+  author       = {Rensin, David K.},
+  year         = {2015},
+  howpublished = {O'Reilly Media, OSCON 2015},
+  url          = {https://www.oreilly.com/webops-perf/free/kubernetes.csp}
 }
 
 @book{apogeo-fondamenti-programmazione,
@@ -24,12 +11,6 @@ pages	= {All},
   publisher = {Apogeo},
   title = {C++. Fondamenti di programmazione},
   year = {2005}
-}
-
-@online{stored-procedures,
-  title = {Stored Procedures (Database Engine)},
-  url = {https://learn.microsoft.com/en-us/sql/relational-databases/stored-procedures/stored-procedures-database-engine},
-  keyworks = {stored procedures, microsoft sql server, database engine},
 }
 
 @online{ssis,
@@ -219,11 +200,6 @@ author = {Jan Tretmans and Louis Verhaard},
 abstract = {The problem of comparing specifications that use asynchronous communication (Estelle, SDL) with specifications that use synchronous communication (LOTOS) is approached by modelling asynchronous communication in the realm of labelled transition systems using a context. A particular context consisting of two queues, one for input and one for output, is investigated. This queue context is modelled by a queue operator on labelled transition systems. A new equivalence, queue equivalence, is introduced as testing equivalence in a queue context. It turns out that this equivalence can be characterized by sets of traces, instead of by failure pairs, as in the case of conventional testing equivalence on labelled transition systems. A few non-equivalence relations for queue contexts are introduced that can serve as implementation relations. They are related to the implementation relations of failure preorder, trace preorder and conformance.}
 }
 
-@online{kubernetes,
-  title={Kubernetes: Production-Grade Container Orchestration},
-  url={https://kubernetes.io/docs/concepts/overview/}
-}
-
 @misc{requirements_meeting,
   author       = {Elmec Informatica S.p.A.},
   title        = {Requirements definition meeting for the new system},
@@ -268,10 +244,17 @@ isbn="978-3-030-50578-3"
   keywords={Interviews;Virtual machining;Software engineering;Software development;Docker;SE Radio;Software Engineering Radio;James Turnbull;microservices;Docker containers},
   doi={10.1109/MS.2015.62}}
 
-@online{docker_doc,
-  title={What is a Container?},
-  url={https://www.docker.com/resources/what-container/}
-} 
+@article{docker_doc, 
+  title={Navigating the Docker Ecosystem: A Comprehensive Taxonomy and Survey}, 
+  volume={17}, 
+  url={https://journalajrcos.com/index.php/AJRCOS/article/view/411}, 
+  DOI={10.9734/ajrcos/2024/v17i1411}, 
+  number={1}, 
+  journal={Asian Journal of Research in Computer Science}, author={Muzumdar, Prathamesh and Bhosale, Amol and Basyal, Ganga Prasad and Kurian, George}, 
+  year={2024}, 
+  month={Jan.}, 
+  pages={42-61} 
+}
 
 @online{vue3,
   title={Vue.js v3 Documentation},
@@ -517,12 +500,6 @@ doi = {10.1109/69.50912}
   pages={824-836},
   keywords={Routing;Complexity theory;Search problems;Data models;Approximation algorithms;Biological system modeling;Brain modeling;Graph and tree search strategies;artificial intelligence;information search and retrieval;information storage and retrieval;information technology and systems;search process;graphs and networks;data structures;nearest neighbor search;big data;approximate search;similarity search},
   doi={10.1109/TPAMI.2018.2889473}}
-
-
-@chroma{chroma2023,
-  title = {Chroma - Documentation},
-  url={https://docs.trychroma.com/docs/overview/introduction}
-}
 
 @inproceedings{wei2023chainofthoughtpromptingelicitsreasoning,
 title={Chain of Thought Prompting Elicits Reasoning in Large Language Models},
@@ -771,4 +748,119 @@ keywords = {Large Language Models, Hallucination, Factuality, Faithfulness}
 @online{nltk,
   title={NLTK - Natural Language Toolkit},
   url={https://www.nltk.org/}
+}
+
+@techreport{mell2011nistcloud,
+  author      = {Mell, Peter and Grance, Timothy},
+  title       = {The {NIST} Definition of Cloud Computing},
+  institution = {National Institute of Standards and Technology},
+  year        = {2011},
+  number      = {SP 800-145},
+  type        = {NIST Special Publication},
+  doi         = {10.6028/NIST.SP.800-145},
+  url         = {https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-145.pdf}
+}
+
+@article{borg-omega-kubernetes,
+author = {Burns, Brendan and Grant, Brian and Oppenheimer, David and Brewer, Eric and Wilkes, John},
+year = {2016},
+month = {04},
+pages = {50-57},
+title = {Borg, Omega, and Kubernetes},
+volume = {59},
+journal = {Communications of the ACM},
+doi = {10.1145/2890784}
+}
+
+@Inbook{Dragoni2017,
+author="Dragoni, Nicola
+and Giallorenzo, Saverio
+and Lafuente, Alberto Lluch
+and Mazzara, Manuel
+and Montesi, Fabrizio
+and Mustafin, Ruslan
+and Safina, Larisa",
+editor="Mazzara, Manuel
+and Meyer, Bertrand",
+title="Microservices: Yesterday, Today, and Tomorrow",
+bookTitle="Present and Ulterior Software Engineering",
+year="2017",
+publisher="Springer International Publishing",
+address="Cham",
+pages="195--216",
+abstract="Microservices is an architectural style inspired by service-oriented computing that has recently started gaining popularity. Before presenting the current state of the art in the field, this chapter reviews the history of software architecture, the reasons that led to the diffusion of objects and services first, and microservices later. Finally, open problems and future challenges are introduced. This survey primarily addresses newcomers to the discipline, while offering an academic viewpoint on the topic. In addition, we investigate some practical issues and point out a few potential solutions.",
+isbn="978-3-319-67425-4",
+doi="10.1007/978-3-319-67425-4_12",
+url="https://doi.org/10.1007/978-3-319-67425-4_12"
+}
+
+@Inbook{Dragoni2017,
+author="Dragoni, Nicola
+and Giallorenzo, Saverio
+and Lafuente, Alberto Lluch
+and Mazzara, Manuel
+and Montesi, Fabrizio
+and Mustafin, Ruslan
+and Safina, Larisa",
+editor="Mazzara, Manuel
+and Meyer, Bertrand",
+title="Microservices: Yesterday, Today, and Tomorrow",
+bookTitle="Present and Ulterior Software Engineering",
+year="2017",
+publisher="Springer International Publishing",
+address="Cham",
+pages="195--216",
+abstract="Microservices is an architectural style inspired by service-oriented computing that has recently started gaining popularity. Before presenting the current state of the art in the field, this chapter reviews the history of software architecture, the reasons that led to the diffusion of objects and services first, and microservices later. Finally, open problems and future challenges are introduced. This survey primarily addresses newcomers to the discipline, while offering an academic viewpoint on the topic. In addition, we investigate some practical issues and point out a few potential solutions.",
+isbn="978-3-319-67425-4",
+doi="10.1007/978-3-319-67425-4_12",
+url="https://doi.org/10.1007/978-3-319-67425-4_12"
+}
+
+@inproceedings{Fruhwirth2005NewMI,
+  title={New Methods in Hard Disk Encryption},
+  author={Clemens Fruhwirth},
+  year={2005},
+  url={https://api.semanticscholar.org/CorpusID:16173417}
+}
+
+@article{relational-model-for-large-shared-data-banks,
+author = {Codd, E. F.},
+title = {A relational model of data for large shared data banks},
+year = {1970},
+issue_date = {June 1970},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {13},
+number = {6},
+issn = {0001-0782},
+url = {https://doi.org/10.1145/362384.362685},
+doi = {10.1145/362384.362685},
+abstract = {Future users of large data banks must be protected from having to know how the data is organized in the machine (the internal representation). A prompting service which supplies such information is not a satisfactory solution. Activities of users at terminals and most application programs should remain unaffected when the internal representation of data is changed and even when some aspects of the external representation are changed. Changes in data representation will often be needed as a result of changes in query, update, and report traffic and natural growth in the types of stored information.Existing noninferential, formatted data systems provide users with tree-structured files or slightly more general network models of the data. In Section 1, inadequacies of these models are discussed. A model based on n-ary relations, a normal form for data base relations, and the concept of a universal data sublanguage are introduced. In Section 2, certain operations on relations (other than logical inference) are discussed and applied to the problems of redundancy and consistency in the user's model.},
+journal = {Commun. ACM},
+month = jun,
+pages = {377–387},
+numpages = {11},
+keywords = {composition, consistency, data bank, data base, data integrity, data organization, data structure, derivability, hierarchies of data, join, networks of data, predicate calculus, redundancy, relations, retrieval language, security}
+}
+
+@inproceedings{survey_vector_databases,
+author = {Xie, Xingrui and Liu, Han and Hou, Wenzhe and Huang, Hongbin},
+year = {2023},
+month = {12},
+pages = {364-371},
+title = {A Brief Survey of Vector Databases},
+doi = {10.1109/BigDIA60676.2023.10429609}
+}
+
+@Article{telecom4020018,
+AUTHOR = {Maharjan, Rokin and Chy, Md Showkat Hossain and Arju, Muhammad Ashfakur and Cerny, Tomas},
+TITLE = {Benchmarking Message Queues},
+JOURNAL = {Telecom},
+VOLUME = {4},
+YEAR = {2023},
+NUMBER = {2},
+PAGES = {298--312},
+URL = {https://www.mdpi.com/2673-4001/4/2/18},
+ISSN = {2673-4001},
+DOI = {10.3390/telecom4020018}
 }

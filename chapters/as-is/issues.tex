@@ -49,7 +49,7 @@ The import of data from clients' Active Directories and the actual execution of 
 Code and data persistence management is another critical aspect of the system, characterized by a lack of versioning and modern debugging tools.
 
 \subsubsection{Unversioned and Undebuggable Stored Procedures}
-The intensive use of Stored Procedures\footnote{Stored procedures are SQL code routines, or sets of instructions, that are pre-compiled and stored within a relational database. They act as logical units of execution, encapsulating business logic directly at the database level \cite{stored-procedures}.} in the MSSQL database represents one of the major weaknesses. These procedures contain fundamental business logic and are:
+The intensive use of Stored Procedures\footnote{Stored procedures are SQL code routines, or sets of instructions, that are pre-compiled and stored within a relational database. They act as logical units of execution, encapsulating business logic directly at the database level \cite{relational-model-for-large-shared-data-banks}.} in the MSSQL database represents one of the major weaknesses. These procedures contain fundamental business logic and are:
 \begin{itemize}
     \item \textbf{Unversioned}: There is no centralized version control system for Stored Procedures. Changes are made directly on the database, making it impossible to track changes, revert to previous versions, or test modifications in separate environments.
     \item \textbf{Difficult to Debug}: Debugging Stored Procedures is a complex and cumbersome process, often requiring direct access and specific SQL server tools, with the risk of affecting the production environment.

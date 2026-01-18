@@ -23,9 +23,9 @@ Once created, the container can be run anywhere Docker is present (in our case, 
 The system thus becomes extremely more portable, moving away from the strict dependency on specific operating systems and hardware configurations like, in this case, Windows Server and Microsoft SQL Server.
 
 \subsubsection{Orchestration with Kubernetes}\label{sec:orchestration-kube}
-Kubernetes (K8s) is an open-source system for \textit{automated container orchestration}, originally developed by Google. Its purpose is to manage entire fleets of Docker containers in a \textit{cluster}, ensuring that applications are always available, scalable, and resilient \cite{kubernetes}.
+Kubernetes (K8s) is an open-source system for \textit{automated container orchestration}, originally developed by Google. Its purpose is to manage entire fleets of Docker containers in a \textit{cluster}, ensuring that applications are always available, scalable, and resilient \cite{borg-omega-kubernetes} \cite{kube_book}.
 
-If Docker provides the mechanism for creating and distributing containers, Kubernetes is its natural complement, handling their large-scale management (\textit{orchestration}), transforming the infrastructure from a set of single machines into a centrally managed cluster \cite{kubernetes}.
+If Docker provides the mechanism for creating and distributing containers, Kubernetes is its natural complement, handling their large-scale management (\textit{orchestration}), transforming the infrastructure from a set of single machines into a centrally managed cluster \cite{kube_book}.
 
 K8s allows components to scale horizontally based on the workload (via the Horizontal Pod Autoscaler). When demand increases, K8s automatically launches new instances of services (e.g., more pods for the REST backend) and removes them when the load decreases. This is crucial for managing traffic peaks \cite{kube_book}. 
 
