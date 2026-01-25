@@ -20,7 +20,7 @@
 \chapter*{Introduction}
 \addcontentsline{toc}{chapter}{Introduction}
 
-This thesis describes the redesign and restructuring of a legacy system for managing Service Requests for an internship at Elmec Informatica, evolving it from a legacy distributed monolith with lots structural limitations (SRP) into a modern, scalable microservices architecture (ServiceRequestManager, SRM).
+This thesis describes the redesign and restructuring of a legacy system for managing remote-executed Service Requests for an internship at Elmec Informatica, evolving it from a legacy distributed monolith with lots structural and design limitations into a modern, scalable microservices architecture: ServiceRequestManager (SRM).
 
 The legacy system is characterized by a fragmented architecture that compromises scalability, maintainability, and reliability. Key challenges identified includes a monolithic frontend component exceeding 11,000 lines of code where business logic is hard-coded into the presentation layer; a heavy dependency on the Agent installed on customer Domain Controllers, leading to security risks and operational bottlenecks; the use of unversioned logic stored within Stored Procedures and SSIS jobs, making collaboration and error tracking difficult; and significant data integrity issues within the legacy MSSQL database.
 

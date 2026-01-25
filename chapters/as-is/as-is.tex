@@ -1,14 +1,14 @@
 \chapter{Overview of the Existing System}
-The internship project was not focused on creating an entirely new system from scratch, but rather on a deep redesign and restructuring of an existing system developed many years ago using legacy technologies and affected by several issues and critical limitations.
+This project was not focused on creating an entirely new system from scratch, but rather on a deep redesign and restructuring of an existing system developed many years ago using legacy technologies and affected by several issues and critical design limitations.
 
 Before discussing the architectural, technological, and implementation choices that were made, it is necessary to carry out a thorough analysis of the current system, in order to understand its behavior, operational flows, technologies used, the main issues to be addressed, how to resolve them, how to prevent them from reoccurring in the future, and how to ensure that the new system is scalable and maintainable.
 
-Before proceeding with the analysis of the legacy system, it is essential to clarify the distinction between two fundamental concepts that will recur throughout this thesis: \textit{Actions} and \textit{Service Requests}.
+Before proceeding with the analysis of the legacy system, it is essential to clarify the distinction between two fundamental concepts that will recur several times throughout this thesis: \textit{Actions} and \textit{Service Requests}.
 
-An \textbf{Action} represents the formal definition and configuration of an IT service that can be executed. It specifies all the metadata necessary for execution, including the description, required input fields with their metadata, execution scripts, approval requirements, and so on. Actions constitute the catalog: the repository of all operations that customers can request through the system.
+An \textbf{Action} represents the formal definition and configuration of an IT service that can be executed. It specifies all the metadata necessary for execution, including the description, required input fields with their metadata, execution scripts, approval requirements, and so on. Actions constitute the \textit{catalog}: the repository of all operations that customers can request through the system.
 
 
-A \textbf{Service Request} (SR) represents the concrete instantiation and execution of a specific Action. When a user submits a Service Request, they are creating an executable instance of an Action by providing values for its required fields. The Service Request follows a complete lifecycle from creation through validation, potential approval, execution on target infrastructure, and final completion or error handling. While an Action defines "what can be done," a Service Request represents "what is actually being done" at a specific moment for a specific customer or resource.
+A \textbf{Service Request} (SR) represents the concrete instantiation and execution of a specific Action. When a user submits a Service Request, they are creating an executable instance of an Action by providing values for its required fields. The Service Request follows a complete lifecycle from creation through validation, potential approval, execution on target infrastructure, and final completion or error handling. While an Action defines "what can be done and how", a Service Request represents "what is actually being done, at a specific moment for a specific customer or resource".
 
 \input{chapters/as-is/sr-workflow.tex}
 
