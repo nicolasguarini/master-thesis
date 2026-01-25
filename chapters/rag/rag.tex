@@ -566,7 +566,7 @@ The final dataset comprises approximately 100 labeled examples spanning the majo
 
 The evaluation framework computes several complementary metrics that assess different aspects of recommendation quality:
 
-\textbf{Accuracy@1} measures the proportion of queries where the top-ranked recommendation matches the ground-truth action. This metric directly reflects the user experience for users who select the first suggestion without examining alternatives, representing a critical threshold for system utility.
+\textbf{Accuracy@1} measures the proportion of queries where the top-ranked recommendation matches the correct action. This metric directly reflects the user experience for users who select the first suggestion without examining alternatives, representing a critical threshold for system utility.
 
 \textbf{Accuracy@3} evaluates whether the correct action appears anywhere in the top-3 recommendations. This metric accounts for scenarios where users scan multiple suggestions before selecting, providing a more lenient assessment that captures the system's~ability to surface relevant actions even when ranking is imperfect.
 
@@ -591,7 +591,7 @@ The evaluation framework was executed against the complete 200-example dataset, 
 
 \subsubsection{Overall Performance Metrics}
 
-Table \ref{tab:overall_metrics} presents the aggregate performance metrics across the complete evaluation dataset. The system achieved 78.6\% accuracy at rank 1, meaning that for approximately four out of five queries, the top-ranked recommendation matches the ground-truth action. This performance level indicates strong practical utility, as users who accept the first suggestion without examining alternatives will receive correct recommendations in the substantial majority of cases.
+Table \ref{tab:overall_metrics} presents the aggregate performance metrics across the complete evaluation dataset. The system achieved 78.6\% accuracy at rank 1, meaning that for approximately four out of five queries, the top-ranked recommendation matches the correct action. This performance level indicates strong practical utility, as users who accept the first suggestion without examining alternatives will receive correct recommendations in the substantial majority of cases.
 
 \begin{table}[htbp]
 \centering
