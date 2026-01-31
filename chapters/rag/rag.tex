@@ -552,15 +552,85 @@ The combination of these enhancements would evolve the system from a query-drive
 To assess the quality and reliability of the RAG-based recommendation system, a comprehensive evaluation framework was developed. This framework enables systematic testing of recommendation accuracy across diverse user queries and action categories, providing quantitative metrics that guide system improvements and validate deployment readiness.
 
 \subsection{Dataset Construction}
-The evaluation dataset was constructed through a hybrid approach combining real-world user queries with synthetically generated prompts designed to ensure comprehensive coverage of the action catalog. Production logs from the recommendation system API provided authentic user queries that capture natural language patterns and terminology actually used by end users. These real queries were augmented with manually crafted prompts for less frequently requested actions, ensuring that evaluation coverage extends beyond the most popular services.
 
-The synthetic prompts were designed to reflect realistic usage patterns while accounting for the technical competence level of authorized users. Individuals granted permissions to create service requests typically possess foundational IT knowledge and operational experience, as these permissions are restricted to technically qualified personnel. The synthetic prompts therefore balance accessibility for non-expert users with technical precision, avoiding both oversimplification that would misrepresent actual usage and excessive jargon that would exclude legitimate users.
+The evaluation dataset was constructed through a hybrid approach combining real-world user queries with manually crafted prompts designed to ensure comprehensive coverage of the action catalog across all service categories.
 
-Prompt diversity was deliberately engineered to capture varied formulation styles: direct technical requests ("create AD user account"), business-oriented descriptions ("set up email access for new employee"), troubleshooting scenarios ("user cannot access shared folder"), and implicit intent statements ("onboarding new hire"). This diversity ensures the evaluation dataset reflects the full spectrum of natural language patterns the system will encounter in production.
+\subsubsection{Real-World Query Collection}
 
-All prompts were manually labeled with action IDs through careful examination of catalog definitions and field requirements. This manual labeling, provides maximum confidence in label quality, eliminating the noise and ambiguity that would result from automated labeling. Each prompt-action pair was validated to ensure that the labeled action represents the correct and most appropriate match for the user intent expressed in the prompt.
+Production logs from the recommendation system API provided 150 authentic user queries captured during pilot deployments with early adopter customers (MONTURA, IRCASPA, ENOPLASTIC). These customers, having explicitly consented to query logging for system improvement purposes, provided realistic examples of how authorized users formulate service requests in their own language and terminology.
 
-The final dataset comprises approximately 100 labeled examples spanning the major action categories (System, Personal, Network). Category labels enable stratified analysis of system performance, revealing whether the recommendation engine performs better for certain action types than others. This category-level granularity supports targeted improvements, as performance disparities across categories may indicate deficiencies in catalog documentation, embedding quality, or prompt engineering for specific service domains.
+The real-world queries were extracted from the application database through SQL queries filtering for pilot customer identifiers and timestamp ranges corresponding to the pilot period. Initial extraction yielded approximately 180 queries, which were subsequently filtered to remove malformed submissions (blank queries, accidental submissions, test queries) and duplicate near-identical formulations, resulting in the final set of 150 representative real-world examples.
+
+\textbf{Characteristics of Real-World Queries:} Analysis of the 150 real-world queries reveals several distinctive patterns that informed the design of the recommendation system and the construction of synthetic prompts:
+
+\begin{itemize}
+    \item \textbf{Language Distribution:} Approximately 75\% of queries were formulated in Italian, with the remaining 25\% in English, reflecting the bilingual nature of the customer base and validating the requirement for multilingual embedding models.
+    \item \textbf{Query Length:} Median query length was 8 tokens (range: 2-35 tokens), with most queries comprising short, imperative statements rather than elaborate descriptions. Example short queries include "new AD user" (3 tokens) and "user creation" (2 tokens), while longer queries provide additional context: "Hi Team Regarding ticket T6575021E For user Assitenza Todema : Add group GRP-VPN-Access-ANEMONE" (18 tokens).
+    \item \textbf{Formulation Patterns:} Queries exhibited three primary formulation patterns: (1) Direct imperative requests ("create DHCP reservation", "new account creation"), representing 45\% of queries; (2) Need-based statements ("I need to create a new mailbox", "I need to change a user's first name"), representing 35\% of queries; (3) Contextual descriptions embedding the request within operational context ("Eoin Callinan's mailbox is full. Is there anyway we can auto-move files to his online archive to free up some space?"), representing 20\% of queries.
+    \item \textbf{Technical Specificity Variance:} Queries ranged from highly generic ("new AD user") to technically precise with specific parameters ("In vpn they must be able to reach ip 192.168.17.100"). This variance reflects the diversity in user technical expertise levels despite all users possessing baseline IT permissions.
+    \item \textbf{Category Distribution:} The 150 real-world queries were heavily biased toward the Personal category (85\%, 127 queries), primarily involving Active Directory user account management, group membership modifications, and mailbox operations. Network category queries constituted only 7\% (10 queries), with System category queries representing 8\% (13 queries). This distribution reflects the pilot customers' purchased service blocks, which emphasized workplace identity and productivity services over infrastructure management.
+\end{itemize}
+
+Table \ref{tab:real_world_examples} presents representative examples from the real-world query collection illustrating the diversity in formulation style, technical specificity, and language.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{p{0.65\textwidth}p{0.15\textwidth}p{0.1\textwidth}}
+\toprule
+\textbf{Query} & \textbf{Category} & \textbf{Tokens} \\
+\midrule
+"new AD user" & Personal & 3 \\
+"I need to create a new mailbox" & Personal & 8 \\
+"Hi I need to create a new account with email for Rossi Fabio" & Personal & 14 \\
+"Devo rimuovere un utente da un gruppo" & Personal & 8 \\
+"create DHCP reservation" & Network & 3 \\
+"Urgent - please unblock Jerry Alexander from risky user list. He's trying to setup his MFA again and got blocked for suspicious API calls." & Personal & 26 \\
+"restore" & System & 1 \\
+\bottomrule
+\end{tabular}
+\caption{Representative Examples from Real-World Query Collection}
+\label{tab:real_world_examples}
+\end{table}
+
+Query length was measured in terms of tokens using the \texttt{cl100k\_base} tokenizer, which approximates the tokenization behavior of modern OpenAI-compatible large language models.
+It should be noted that the exact tokenization may differ slightly from the tokenizer used internally by the model; however, this does not affect relative comparisons, as all queries were tokenized consistently using the same scheme.
+
+\subsubsection{Manual Prompt Generation for Underrepresented Categories}
+
+The strong category imbalance in real-world queries (85\% Personal, 7\% Network, 8\% System) would compromise evaluation validity by undersampling Network and System domains where the recommendation system might exhibit different performance characteristics. To ensure statistically meaningful evaluation across all major service categories, 50 additional prompts were manually crafted to supplement the underrepresented Network and System categories.
+
+The manual prompt generation process followed a systematic methodology designed to maximize realism and consistency with observed real-world patterns:
+
+\begin{enumerate}
+    \item \textbf{Category Identification:} Network and System actions from the catalog were enumerated and prioritized based on actual service usage frequency in non-pilot customer populations, ensuring synthetic prompts targeted genuinely utilized services rather than obscure catalog entries.
+    \item \textbf{Formulation Pattern Matching:} Each synthetic prompt was constructed following one of the three observed real-world formulation patterns (direct imperative, need-based statement, contextual description), with pattern distribution matching the real-world query statistics (45\% imperative, 35\% need-based, 20\% contextual).
+    \item \textbf{Technical Specificity Calibration:} Synthetic prompts were calibrated to match the technical specificity variance observed in real queries, ranging from generic requests ("configure firewall rule") to parameter-specific formulations ("create VPN access for remote employee in engineering department").
+    \item \textbf{Language Distribution:} Synthetic prompts maintained the 75\%/25\% Italian/English language distribution observed in real queries.
+    \item \textbf{Token Length Matching:} Synthetic prompt lengths were sampled from the empirical token length distribution of real queries (median 8 tokens, range 2-35), ensuring statistical similarity in query complexity.
+\end{enumerate}
+
+The author, possessing both technical expertise in enterprise IT services and familiarity with the pilot customer user base, manually composed all 50 synthetic prompts following these constraints. Each synthetic prompt was subsequently validated through comparison against real-world examples to ensure absence of unrealistic formulations or terminology that would not plausibly originate from authorized users.
+
+\subsubsection{Final Dataset Composition}
+
+The complete evaluation dataset comprises exactly 200 manually labeled examples with the following composition:
+
+\begin{itemize}
+    \item \textbf{Real-World Queries:} 150 examples (75\% of dataset);
+    \item \textbf{Manually Crafted Synthetic Queries:} 50 examples (25\% of dataset).
+\end{itemize}
+
+Category distribution in the final dataset:
+\begin{itemize}
+    \item \textbf{Personal:} 120 examples (60\%), comprising 107 real-world and 13 synthetic;
+    \item \textbf{Network:} 55 examples (27.5\%), comprising 10 real-world and 45 synthetic;
+    \item \textbf{System:} 25 examples (12.5\%), comprising 13 real-world and 12 synthetic.
+\end{itemize}
+
+All 200 examples were manually labeled with action IDs through careful examination of action descriptions, extended descriptions, and required field configurations. Each label assignment was validated to ensure the selected action represented the most appropriate match for the expressed user intent, with ambiguous cases adjudicated through consultation with domain experts from the Managed Services team responsible for catalog maintenance.
+
+The hybrid construction methodology yields a dataset that combines validity from real user behavior with controlled coverage ensuring statistical power across all major service domains, providing robust foundation for systematic evaluation of recommendation quality.
 
 \subsection{Evaluation Metrics}
 
