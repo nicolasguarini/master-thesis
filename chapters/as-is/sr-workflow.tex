@@ -37,8 +37,8 @@ A Service Request can be initiated primary through two channels \cite{azioni_ges
 As shown in Figure \ref{fig:flowchart-as-is-new-sr}, following the Service Request creation, the system evaluates whether the Service Request requires approval by the operators. The logic for setting the initial SR and HDA ticket states is as follows \cite{azioni_gestione_srp}:
 \begin{itemize}
     \item \textbf{If approval is required}: the Service Request is set to \texttt{WAITING FOR APPROVAL} status, and the corresponding HDA ticket is set to \texttt{QUALIFIED}. A communication is added to the ticket, indicating that the SR needs validation from an operator before execution;
-    \item \textbf{If no approval is required and it's~linked to an automatism}: the Service Request enters a \texttt{PENDING} state, and the HDA ticket is set to \texttt{DELEGATED};
-    \item \textbf{If no approval is required and it's~not linked to an automatism}: the Service Request is \texttt{ASSIGNED}, and the HDA ticket is set to \texttt{PASSED}. A communication is added to the ticket, noting that the SR requires manual processing by an operator.
+    \item \textbf{If no approval is required and the SR it's~linked to an automatism}: the Service Request enters a \texttt{PENDING} state, and the HDA ticket is set to \texttt{DELEGATED};
+    \item \textbf{If no approval is required and the SR it's~not linked to an automatism}: the Service Request is \texttt{ASSIGNED}, and the HDA ticket is set to \texttt{PASSED}. A communication is added to the ticket, noting that the SR requires manual processing by an operator.
 \end{itemize}
 
 \subsection{Approval and Execution Workflows}
