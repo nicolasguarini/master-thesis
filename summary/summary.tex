@@ -45,7 +45,7 @@ The objective was therefore to design and implement a solution that would overco
 
 The analysis of the legacy Service Request Portal (SRP) system revealed several architectural and technological criticalities accumulated over the years. The system was characterized by a fragmented architecture that compromised scalability, maintainability, and reliability.
 
-The monolithic frontend represented an excessively complex component, with over 11,000 lines of code where business logic was encoded directly into the presentation layer, making customizations nearly impossible without direct code intervention. The system relied heavily on an Agent installed on customers' Domain Controllers and Exchange Servers, which introduced security risks by requiring elevated permissions and created critical operational dependencies.
+The monolithic frontend represented an excessively complex component, where business logic was encoded directly into the presentation layer, making customizations nearly impossible without direct code intervention. The system relied heavily on an Agent installed on customers' Domain Controllers and Exchange Servers, which introduced security risks by requiring elevated permissions and created critical operational dependencies.
 
 Data management presented equally significant issues: core logic was scattered across unversioned SQL Server Stored Procedures and SSIS jobs, making collaboration and error tracking difficult. The database schema suffered from significant redundancy and lack of referential integrity, resulting in data inconsistencies.
 
@@ -61,7 +61,7 @@ A central innovation of the SRM system is the implementation of a \textit{three-
 
 The implementation placed particular emphasis on automating the development lifecycle through comprehensive CI/CD pipelines that automate code quality verification, security scanning, testing, building, and deployment across three distinct environments (devel, quality, production). The Git workflow requires feature branches to be integrated sequentially through these environments, ensuring progressive validation before production release.
 
-The centralization of field management and configuration logic in the backend eliminated the monolithic frontend, enabling a highly reusable hierarchical configuration system. The integration of the new execution and retrieval flow for master data through a message queue system based on RabbitMQ was also essential for eliminating the dependency on the obsolete SRP Agent.
+The centralization of field management and configuration logic in the backend eliminated the monolithic frontend, enabling a highly reusable hierarchical configuration system. The integration of the new execution and retrieval flow for master data through a message queue system based on \textit{RabbitMQ} was also essential for eliminating the dependency on the obsolete SRP Agent.
 
 \section*{\normalsize Coexistence and Gradual Migration Strategy}
 
